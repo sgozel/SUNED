@@ -1,0 +1,257 @@
+// Copyright 2026 Samuel GOZEL, GNU GPLv3
+
+#include "hb_fund_matrix_engine.h"
+
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <string>
+#include <chrono>
+#include <stdexcept>
+#include <omp.h>
+
+#include "../utils/utils.h"
+
+
+#ifdef SG_USE_BASIC_SYT
+#include "../syt_usage/vsyt_usage.h"
+#else
+#include "../syt_usage/bsyt_usage.h"
+#endif
+
+
+namespace sun {
+
+HBFundMatrixEngine::HBFundMatrixEngine(nlohmann::json const& inputParam)
+: HBFundEngine(inputParam)
+{	
+	P_.resize(alpha_.n()-1);
+	
+	dump_matrices_ = inputParam.value("dump_matrices", false);
+	if (dump_matrices_ == true) {
+		if (!inputParam.contains("matrix_dump_folder_path")) {
+			throw std::runtime_error("Missing matrix_dump_folder_path in input .json file for HBFundMatrixEngine.");
+		}
+		matrix_dump_path_ = inputParam["matrix_dump_folder_path"];
+		if (matrix_dump_path_.back()!='/') {
+			matrix_dump_path_ += std::string("/");
+		}
+	}
+}
+
+
+void HBFundMatrixEngine::build_matrix_lookups()
+{
+	{
+		double factor = 1e6;
+		std::string units = "MB";
+		double memMatrixLookups = sizeof(typePk)*(alpha_.n()-1)*static_cast<double>(dimension_)/factor;
+		double memLanczos = sizeof(double)*3*static_cast<double>(dimension_)/factor;
+		double memLanczosCopy = sizeof(double)*static_cast<double>(dimension_)/factor;
+		double memTotal = memMatrixLookups + memLanczos + memLanczosCopy;
+	
+		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
+		std::cout << ":::::::: TOTAL MEMORY REQUIREMENTS ::::::::" << std::endl;
+		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
+		std::cout << "Matrix lookups: " << memMatrixLookups << units << std::endl;
+		std::cout << "3 Lanczos vectors: " << memLanczos << units << std::endl;
+		std::cout << "1 Lanczos work in multiply: " << memLanczosCopy << units << std::endl;
+		std::cout << "--------------" << std::endl;
+		std::cout << "Total: " << memTotal << units << std::endl;
+		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
+	}
+	
+	std::chrono::time_point<std::chrono::high_resolution_clock> t_start = std::chrono::high_resolution_clock::now();
+	
+	for (unsigned int k=0; k<alpha_.n()-1; ++k)
+	{	
+		std::chrono::time_point<std::chrono::high_resolution_clock> tk_start = std::chrono::high_resolution_clock::now();
+		
+		P_[k].resize(dimension_);
+		
+		// Attempt to load P_[k] from file if it exists
+        if ((dump_matrices_ == true) && (load_matrix(k))) {
+            std::chrono::time_point<std::chrono::high_resolution_clock> tk_end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> dtk = tk_end - tk_start;
+            std::cout << "Loaded from file (" << k << ", " << k+1 << ")"
+                      << std::setw(9) << std::right << dtk.count() << " ms" << std::endl;
+            continue;
+        }
+		
+		#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+		for (UINT64 i=0; i<dimension_; ++i) {
+			
+			const int rowk = Y_[i].get(k);
+			const int rowkk = Y_[i].get(k+1);
+			
+			if (rowk==rowkk) {
+				P_[k][i] = 0;
+			} else {
+				const std::pair<int, int> cy = get_column_k_k_plus_one(Y_[i], k);
+				if (cy.first==cy.second) {
+					P_[k][i] = -1;
+				} else {
+					SYT yfriend = Y_[i];
+					yfriend.exchange(k, k+1);
+					
+					auto it = std::lower_bound(Y_.begin(), Y_.end(), yfriend);
+					UINT64 index = it - Y_.begin();
+					
+					if (index>i) {
+						P_[k][i] = static_cast<typePk>(index);
+						const typePk ax = cy.first - rowk - cy.second + rowkk; // axial distance from k to k+1 in SYT Y_[i]
+						if (ax>=0) {
+							// This should never happen, because SYTs in Y_
+							// are ordered in the descending order of the LLOS
+							throw std::runtime_error("Problem: ax>=0");
+						}
+						P_[k][index] = ax; // negative and different from -1
+					}
+				}
+			}
+		}
+		
+		std::chrono::time_point<std::chrono::high_resolution_clock> tk_end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::milli> dtk = tk_end - tk_start;
+		double t_k = dtk.count();
+		std::cout << "Time (" << k << ", " << k+1 << ")" 
+				  << std::setw(9) << std::right << t_k << " ms" << std::endl;
+		
+		if (dump_matrices_ == true) {
+			dump_matrix(k);
+		}
+	}
+	
+	std::chrono::time_point<std::chrono::high_resolution_clock> t_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> dt = t_end - t_start;
+	double elapsed = dt.count();
+	std::cout << "Time build_matrix_lookups: " 
+			  << std::setw(9) << std::right << elapsed << " ms" << std::endl;
+	
+	free_basis();
+}
+
+
+void HBFundMatrixEngine::dump_matrix(const unsigned int k) const
+{
+	const std::string filename = matrix_dump_path_ + std::string("Pk_") + std::to_string(k) + ".bin";
+	std::ofstream out(filename, std::ios::binary);
+	if (!out) {
+		throw std::runtime_error("Cannot open file : " + filename);
+	}
+	
+	// Write dimension_
+	out.write(reinterpret_cast<const char*>(&dimension_), sizeof(UINT64));
+	
+	// Write P_[k]
+	out.write(reinterpret_cast<const char*>(P_[k].data()), dimension_ * sizeof(typePk));
+}
+
+
+bool HBFundMatrixEngine::load_matrix(const unsigned int k)
+{
+    const std::string filename = matrix_dump_path_ + std::string("Pk_") + std::to_string(k) + ".bin";
+    std::ifstream in(filename, std::ios::binary);
+    if (!in) {
+        return false;
+    }
+
+    // Read and verify dimension_
+    UINT64 stored_dimension = 0;
+    in.read(reinterpret_cast<char*>(&stored_dimension), sizeof(UINT64));
+    if (!in || stored_dimension != dimension_) {
+        std::cerr << "Warning: dimension mismatch or read error in file: " << filename
+                  << " (stored=" << stored_dimension << ", expected=" << dimension_ << ")" << std::endl;
+        return false;
+    }
+
+    // Read P_[k]
+    P_[k].resize(dimension_);
+    in.read(reinterpret_cast<char*>(P_[k].data()), dimension_ * sizeof(typePk));
+    if (!in) {
+        std::cerr << "Warning: failed to read matrix data from file: " << filename << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+
+void HBFundMatrixEngine::free_basis()
+{
+	std::vector<SYT>().swap(Y_);
+}
+
+
+void HBFundMatrixEngine::multiply(const std::vector<double> & w, std::vector<double> & u, const double & a, const std::string & method) const
+{
+    if (method=="multiply_v1_openmp") {
+        multiply_v1_openmp(w, u, a);
+    } else {
+        throw std::runtime_error("Multiply method undefined");
+    }
+}
+
+
+template <class coeff_t>
+void HBFundMatrixEngine::multiply_v1_openmp(const std::vector<coeff_t>& w, std::vector<coeff_t>& u, const double a) const
+{
+	// u <--- H*w - a*u
+	
+	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+	
+	std::for_each(u.begin(), u.end(), [a](coeff_t& el) {el*=(-a);});
+
+	std::vector<coeff_t> work(dimension_); // !!! COPY OF LANCZOS VECTOR !!!
+
+	for (size_t b = 0; b < lattice_.bonds.size(); ++b)
+	{	
+		//std::chrono::time_point<std::chrono::high_resolution_clock> tb0 = std::chrono::high_resolution_clock::now();
+		const auto& bond = lattice_.bonds[b];
+		const double J = bond.couplingValue;
+		
+		std::copy(w.begin(), w.end(), work.begin());
+		
+		for (unsigned int j=0; j<bond.ops.size(); ++j)
+		{
+			const unsigned int k = bond.ops[j].getk();
+		
+			#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			for (UINT64 i=0; i<dimension_; ++i)
+			{	
+				if (P_[k][i]==-1) {
+					work[i] *= -1;
+				} else if (P_[k][i]>0) {
+					const UINT64 index = P_[k][i];
+					const double rho = 1.0/static_cast<double>(P_[k][index]);
+					const double work_i = work[i];
+					const double work_index = work[index];
+					const double eta = std::sqrt(1.0 - rho*rho);
+					work[i] = -rho * work_i + eta * work_index;
+					work[index] = eta * work_i + rho * work_index;
+				}
+			}
+		}
+		
+		// update Lanczos vector
+		for (UINT64 i=0; i<dimension_; ++i) {
+			u[i] += J*work[i];
+		}
+		
+		//std::chrono::time_point<std::chrono::high_resolution_clock> tb1 = std::chrono::high_resolution_clock::now();
+		//std::chrono::duration<double, std::milli> dt_bond = tb1 - tb0;
+		//double t_bond = dt_bond.count();
+		//std::cout << "Time bond " << std::right << std::setw(2) << b << "/" << lattice_.get_nbonds() << ": " 
+		//		  << "[" << std::right << std::setw(2) << bond.ops.size() << "] : "
+		//		  << std::setw(9) << std::right << t_bond << " ms" << std::endl;
+	}
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
+    double t_total = dt_total.count();
+    std::cout << std::fixed;
+    std::cout << std::setprecision(2);
+    std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+}
+
+} // namespace sun

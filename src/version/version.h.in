@@ -1,0 +1,38 @@
+// Copyright 2026 Samuel GOZEL, GNU GPLv3
+
+#ifndef VERSION_H
+#define VERSION_H
+
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+
+#define SUNED_AUTHOR "Samuel Gozel"
+#define SUNED_YEAR "2026"
+#define SUNED_GIT_BRANCH "@GIT_BRANCH@"
+#define SUNED_GIT_COMMIT_HASH "@GIT_COMMIT_HASH@"
+#define SUNED_GIT_COMMIT_TIMESTAMP "@GIT_COMMIT_TIMESTAMP@"
+
+#define PRINT_SUNED_VERSION                                                                  \
+    {                                                                                        \
+        const auto now = std::chrono::system_clock::now();                                   \
+        const std::time_t tt = std::chrono::system_clock::to_time_t(now);                    \
+        const std::tm tm = *std::localtime(&tt);                                             \
+        std::cout << "===================================================" << std::endl;     \
+        std::cout << "====================== SUNED ======================" << std::endl;     \
+        std::cout << "===================================================" << std::endl;     \
+        std::cout << "              Exact Diagonalization                " << std::endl      \
+                  << "          of quantum spin lattice systems          " << std::endl      \
+                  << "                with SU(N) symmetry                " << std::endl;     \
+        std::cout << "===================================================" << std::endl;     \
+        std::cout << "branch ------------ : " << SUNED_GIT_BRANCH << std::endl;              \
+        std::cout << "commit hash ------- : " << SUNED_GIT_COMMIT_HASH << std::endl;         \
+        std::cout << "commit timestamp -- : " << SUNED_GIT_COMMIT_TIMESTAMP << std::endl;    \
+        std::cout << "author ------------ : " << SUNED_AUTHOR << std::endl;                  \
+        std::cout << "year -------------- : " << SUNED_YEAR << std::endl;                    \
+        std::cout << "===================================================" << std::endl;     \
+        std::cout << "Execution --------- : " << std::put_time(&tm, "%Y-%m-%d-%H-%M-%S") << std::endl; \
+        std::cout << "===================================================" << std::endl;     \
+    }
+
+#endif

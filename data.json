@@ -1,0 +1,22 @@
+{
+"N": 3,
+"Ns": 18, 
+"alpha": [6, 6, 6],
+"num_threads": 2,
+"latticefile": "../latticefiles/HB_chain_18_OBC.lattice",
+"J": 1.0,
+"max_iter": 1000,
+"tol_ritz": 1e-13,
+"tol_residual": 1e-13,
+"convergence_check_frequency": 1,
+"dump_eigvec": true,
+"eigvec_folder_path": "C:/Users/Samuel/Desktop/scratch/",
+"logging": false,
+"logging_folder_path": "C:/Users/Samuel/Desktop/scratch/",
+"logging_frequency": 1,
+"checkpointing": false,
+"checkpoint_folder_path": "C:/Users/Samuel/Desktop/scratch/",
+"checkpoint_freq": 5,
+"dump_matrices": false,
+"matrix_dump_folder_path": "C:/Users/Samuel/Desktop/scratch/"
+}

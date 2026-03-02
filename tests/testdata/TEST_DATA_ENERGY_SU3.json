@@ -1,0 +1,66 @@
+[
+{
+"N": 3,
+"Ns": 12,
+"alpha": [4, 4, 4],
+"lattice": "chain",
+"BC": "OBC",
+"energy": -8.263188004910717
+},
+{
+"N": 3,
+"Ns": 12,
+"alpha": [4, 4, 4],
+"lattice": "chain",
+"BC": "PBC",
+"energy": -8.624526804645157
+},
+{
+"N": 3,
+"Ns": 12,
+"alpha": [5, 4, 3],
+"lattice": "chain",
+"BC": "OBC",
+"energy": -7.908329500628006
+},
+{
+"N": 3,
+"Ns": 12,
+"alpha": [5, 4, 3],
+"lattice": "chain",
+"BC": "PBC",
+"energy": -7.924221842740132
+},
+{
+"N": 3,
+"Ns": 15,
+"alpha": [5, 5, 5],
+"lattice": "chain",
+"BC": "OBC",
+"energy": -10.366907518918115
+},
+{
+"N": 3,
+"Ns": 15,
+"alpha": [5, 5, 5],
+"lattice": "chain",
+"BC": "PBC",
+"energy": -10.696221973842384
+},
+{
+"N": 3,
+"Ns": 15,
+"alpha": [6, 5, 4],
+"lattice": "chain",
+"BC": "OBC",
+"energy": -10.072858996269495
+},
+{
+"N": 3,
+"Ns": 15,
+"alpha": [6, 5, 4],
+"lattice": "chain",
+"BC": "PBC",
+"energy": -10.134975270128132
+}
+]
