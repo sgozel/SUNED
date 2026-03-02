@@ -1,0 +1,54 @@
+name: Tests
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "no MPI"
+            use_mpi: OFF
+            mpi_np: 1
+          - name: "MPI"
+            use_mpi: ON
+            mpi_np: 2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libblas-dev \
+            libgtest-dev \
+            libopenblas-dev \
+            googletest
+          if [ "${{ matrix.use_mpi }}" = "ON" ]; then
+            sudo apt-get install -y libopenmpi-dev
+          fi
+
+      - name: Configure
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_MPI=${{ matrix.use_mpi }} \
+            -DMPI_TEST_NP=${{ matrix.mpi_np }} \
+            -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Run tests
+        run: ctest --verbose --output-on-failure --test-dir build
