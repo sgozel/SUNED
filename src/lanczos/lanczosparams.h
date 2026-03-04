@@ -7,6 +7,10 @@
 #include <iomanip>
 #include <string>
 
+#ifdef SG_USE_MPI
+#include <mpi.h>
+#endif
+
 #include "../nlohmann/json.hpp"
 
 #ifdef SG_USE_MPI
@@ -17,11 +21,19 @@ namespace lanczos {
 
 struct LanczosParams {
 	
+	LanczosParams()
+	{
 #ifdef SG_USE_MPI
-	LanczosParams(const int mpi_rank) {
-#else
-	LanczosParams() {
+		int mpi_rank;
+		MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
 #endif
+		
+		// Lanczos init vector
+		seed = 42;
+#ifdef SG_USE_MPI
+		seed += mpi_rank;
+#endif
+		
 		// Lanczos iterations
 		tol_residual = 1.0e-12;
 		tol_ritz = 1.0e-12;
@@ -50,11 +62,21 @@ struct LanczosParams {
 		checkpoint_frequency = 5;
 	}
 	
+
+	LanczosParams(nlohmann::json const& inputParam)
+	{
+		
 #ifdef SG_USE_MPI
-	LanczosParams(nlohmann::json const& inputParam, const int mpi_rank) {
-#else
-	LanczosParams(nlohmann::json const& inputParam) {
+		int mpi_rank;
+		MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
 #endif
+		
+		// Lanczos init vector
+		seed = inputParam.value("seed", 42);
+#ifdef SG_USE_MPI
+		seed += mpi_rank;
+#endif
+		
 		// Lanczos iterations
 		tol_residual = inputParam.value("tol_residual", 1.0e-12);
 		tol_ritz = inputParam.value("tol_ritz", 1.0e-12);
@@ -101,14 +123,15 @@ struct LanczosParams {
 		std::cout << "------------------------------------------" << std::endl;
 		std::cout << "Lanczos parameters:" << std::endl;
 		std::cout << "------------------------------------------" << std::endl;
+		std::cout << "seed ------------------- : " << seed << std::endl;
 		//std::cout << "min_iter --------------- : " << min_iter << std::endl;
 		std::cout << "max_iter --------------- : " << max_iter << std::endl;
 		std::cout << "tol_residual ----------- : " << std::scientific << std::setprecision(3) << tol_residual << std::endl;
 		std::cout << "tol_ritz --------------- : " << std::scientific << std::setprecision(3) << tol_ritz << std::endl;
 		//std::cout << "k ---------------------- : " << k << std::endl;
 		std::cout << "conv_check_freq -------- : " << conv_check_freq << std::endl;
-		std::cout << "dump_eigvec ------------ : " << dump_eigvec << std::endl;
 #ifdef SG_LANCZOS_EIGVEC
+		std::cout << "dump_eigvec ------------ : " << dump_eigvec << std::endl;
 		if (dump_eigvec == true) {
 			std::cout << "eigvec_folder ---------- : " << eigvec_folder << std::endl;
 		}
@@ -126,6 +149,9 @@ struct LanczosParams {
 		}
 		std::cout.flags(coutflags);
 	}
+	
+	// Initialization of Lanczos vector
+	unsigned int seed;
 	
 	// Convergence/Iteration parameters
     unsigned int min_iter;

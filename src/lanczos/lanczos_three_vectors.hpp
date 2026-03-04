@@ -31,7 +31,7 @@ Tmatrix lanczos(const type_mult & multiply,
     
     // Generate initial Lanczos vector
     std::vector<coeff_t> v(dimension);
-    lanczos_init_vector<coeff_t>(v, dimension);	
+    lanczos_init_vector<coeff_t>(v, dimension, lp.seed);	
     
     std::vector<coeff_t> u(v.size(), 0.0);
     std::vector<coeff_t> w(v.size(), 0.0);
@@ -127,7 +127,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 	
 	// Generate initial Lanczos vector
 	std::vector<coeff_t> v(dimension);
-	lanczos_init_vector<coeff_t>(v, dimension);
+	lanczos_init_vector<coeff_t>(v, dimension, lp.seed);
 	
     std::vector<coeff_t> u(dimension, 0.0);
     std::vector<coeff_t> w(dimension, 0.0);
@@ -241,7 +241,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
     // Initialize second pass (only if not restarting from second pass checkpoint)
     if (second_pass_cpt == 0) {
         
-        lanczos_init_vector<coeff_t>(v, dimension);
+        lanczos_init_vector<coeff_t>(v, dimension, lp.seed);
         std::fill(u.begin(), u.end(), 0.0);
         std::fill(w.begin(), w.end(), 0.0);
         

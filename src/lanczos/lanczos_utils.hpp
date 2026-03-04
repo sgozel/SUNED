@@ -2,21 +2,12 @@
 
 
 template<class coeff_t>
-void lanczos_init_vector(std::vector<coeff_t>& v, const UINT64 dimension)
+void lanczos_init_vector(std::vector<coeff_t>& v, const UINT64 dimension, const unsigned int seed)
 {	
 	v.resize(dimension);
 	v.shrink_to_fit();
     
-    #ifdef SG_USE_MPI
-    int mpi_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    #endif
-    
     // random vector
-    unsigned int seed = 42;
-    #ifdef SG_USE_MPI
-    seed += mpi_rank;
-    #endif
 	std::mt19937 gen(seed);
 	std::uniform_real_distribution<double> dist(0.0, 1.0);
     std::generate(v.begin(), v.end(), [&]() {return dist(gen);});

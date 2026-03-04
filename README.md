@@ -65,6 +65,7 @@ All input parameters must be provided in a ``.json`` file, such as the one provi
 | `alpha` | Target sector (irrep) |  |
 | `latticefile` | Path to lattice file |  |
 | `num_threads` | Number of CPU threads (per node) | 1 |
+| `seed` | Seed for Lanczos initialization vector | 42 |
 | `max_iter` | Maximum number of Lanczos iterations | 1000 |
 | `tol_ritz` | Tolerance on Ritz value stabilization in Lanczos | 1e-12 |
 | `tol_residual` | Tolerance on residual in Lanczos | 1e-12 |
