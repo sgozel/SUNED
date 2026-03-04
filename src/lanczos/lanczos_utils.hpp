@@ -115,7 +115,7 @@ void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosPar
 		}
 	}
 	
-	std::cout << "Tmatrix is of dimension max_iter=" << lp.max_iter << std::endl;
+	std::cout << "Tmatrix is of dimension : " << tmat.size() << std::endl;
 	std::ios_base::fmtflags coutflags(std::cout.flags());
 	
 	const unsigned int k = std::min(lp.max_iter, static_cast<unsigned int>(10));
