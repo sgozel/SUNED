@@ -27,6 +27,9 @@ Lattice::Lattice(const std::string & filename)
 		{
 			std::string line;
 			std::getline(file, line);
+			if (!line.empty() && (line.back() == '\r')) {
+				line.pop_back();
+			}
 			allLines.push_back(line);
 		}
 		file.close();
