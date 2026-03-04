@@ -21,6 +21,9 @@
 
 namespace lanczosmpi {
 
+template<class coeff_t>
+void lanczos_init_vector(std::vector<coeff_t>& v, const UINT64 dimension, const unsigned int seed);
+
 
 std::vector<double> residual(Tmatrix & tmat, const unsigned int k);
 

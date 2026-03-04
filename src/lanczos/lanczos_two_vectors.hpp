@@ -30,7 +30,7 @@ Tmatrix lanczos_two_vectors(const type_mult & multiply,
     
     // Generate initial Lanczos vector
     std::vector<coeff_t> w(dimension);
-    lanczos_init_vector<coeff_t>(w, dimension);
+    lanczos_init_vector<coeff_t>(w, dimension, lp.seed);
     std::vector<coeff_t> v(dimension, 0.0);
 
     unsigned int cpt = 0;
@@ -80,7 +80,7 @@ Tmatrix lanczos_two_vectors_eigvec(const type_mult & multiply,
 	Tmatrix tmat;
 	
 	std::vector<coeff_t> w(dimension);
-    lanczos_init_vector<coeff_t>(w, dimension);
+    lanczos_init_vector<coeff_t>(w, dimension, lp.seed);
     std::vector<coeff_t> v(dimension, 0.0);
 
     unsigned int cpt = 0;
@@ -127,7 +127,7 @@ Tmatrix lanczos_two_vectors_eigvec(const type_mult & multiply,
     std::vector<std::vector<double>> eigvecs = tmat.eigenvectors();
     const auto& gs = eigvecs[0];
     
-    lanczos_init_vector<coeff_t>(w, dimension);
+    lanczos_init_vector<coeff_t>(w, dimension, lp.seed);
     std::fill(v.begin(), v.end(), 0.0);
     eigvec.resize(dimension);
     eigvec.shrink_to_fit();
