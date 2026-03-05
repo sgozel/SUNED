@@ -14,11 +14,11 @@ struct LoadedCheckpoint {
     unsigned int iteration;
     std::vector<double> alpha;
     std::vector<double> beta;
-    std::vector<coeff_t> v_current;
-    std::vector<coeff_t> v_previous;
+    sg_vec<coeff_t> v_current;
+    sg_vec<coeff_t> v_previous;
     bool first_pass_complete;
     unsigned int second_pass_iteration;
-    std::vector<coeff_t> eigvec;
+    sg_vec<coeff_t> eigvec;
 };
 
 
@@ -28,14 +28,14 @@ inline bool checkpoint_exists(const std::string& filename) {
 }
 
 
-template<class coeff_t>
+template<class coeff_t, class Alloc>
 void save_checkpoint(const std::string& filename, 
 					 unsigned int iteration, 
 					 const std::vector<double>& alpha, 
 					 const std::vector<double>& beta, 
-					 const std::vector<coeff_t>& v_current, 
-					 const std::vector<coeff_t>& v_previous, 
-					 const std::vector<coeff_t>& eigvec, 
+					 const std::vector<coeff_t, Alloc>& v_current, 
+					 const std::vector<coeff_t, Alloc>& v_previous, 
+					 const std::vector<coeff_t, Alloc>& eigvec, 
 					 bool first_pass_complete, 
 					 unsigned int second_pass_iteration)
 {
@@ -170,10 +170,28 @@ void load_checkpoint(const std::string& filename, LoadedCheckpoint<coeff_t>& che
     // Read v_current
     checkpoint.v_current.resize(dimension);
     in.read(reinterpret_cast<char*>(checkpoint.v_current.data()), dimension * sizeof(coeff_t));
+    // Re-touch to restore NUMA layout
+	{
+		sg_vec<coeff_t> tmp(dimension);
+		#pragma omp parallel for schedule(static)
+		for (UINT64 i = 0; i < dimension; ++i) {
+			tmp[i] = checkpoint.v_current[i];
+		}
+		std::swap(checkpoint.v_current, tmp);
+	}
     
     // Read v_previous
     checkpoint.v_previous.resize(dimension);
     in.read(reinterpret_cast<char*>(checkpoint.v_previous.data()), dimension * sizeof(coeff_t));
+    // Re-touch to restore NUMA layout
+	{
+		sg_vec<coeff_t> tmp(dimension);
+		#pragma omp parallel for schedule(static)
+		for (UINT64 i = 0; i < dimension; ++i) {
+			tmp[i] = checkpoint.v_previous[i];
+		}
+		std::swap(checkpoint.v_previous, tmp);
+	}
     
     // Read eigvec dimension
     UINT64 eigvec_dimension;
@@ -184,6 +202,15 @@ void load_checkpoint(const std::string& filename, LoadedCheckpoint<coeff_t>& che
 	if (eigvec_dimension > 0) {
 		in.read(reinterpret_cast<char*>(checkpoint.eigvec.data()), 
 				eigvec_dimension * sizeof(coeff_t));
+		// Re-touch to restore NUMA layout
+		{
+			sg_vec<coeff_t> tmp(eigvec_dimension);
+			#pragma omp parallel for schedule(static)
+			for (UINT64 i = 0; i < eigvec_dimension; ++i) {
+				tmp[i] = checkpoint.eigvec[i];
+			}
+			std::swap(checkpoint.eigvec, tmp);
+		}
 	}
     
     if (!in.good() && !in.eof()) {

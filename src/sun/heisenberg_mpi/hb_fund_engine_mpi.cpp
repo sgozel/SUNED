@@ -13,6 +13,7 @@
 #include "../syt_usage/bsyt_usage.h"
 #endif
 
+
 namespace sun {
 
 HBFundEngineMPI::HBFundEngineMPI(nlohmann::json const& inputParam)

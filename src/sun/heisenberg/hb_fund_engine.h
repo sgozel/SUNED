@@ -10,6 +10,7 @@
 #else
 #include "../syt/bsyt.h"
 #endif
+#include "../../common/numa.h"
 
 
 namespace sun {
@@ -28,7 +29,7 @@ public:
 	HBFundEngine(nlohmann::json const& inputParam);
 
 	void initEngine() override;
-	void multiply(const std::vector<double> &, std::vector<double> &, const double &, const std::string &) const = 0;
+	void multiply(const sg_vec<double> &, sg_vec<double> &, const double &, const std::string &) const = 0;
 
 protected:
 	std::vector<SYT> Y_;

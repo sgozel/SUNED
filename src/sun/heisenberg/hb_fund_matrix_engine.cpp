@@ -39,6 +39,17 @@ HBFundMatrixEngine::HBFundMatrixEngine(nlohmann::json const& inputParam)
 	}
 }
 
+void HBFundMatrixEngine::initEngine()
+{
+	HBFundEngine::initEngine();
+	
+	work_.resize(dimension_);
+	#pragma omp parallel for schedule(static)
+	for (UINT64 i = 0; i < dimension_; ++i) {
+		work_[i] = 0.0;
+	}
+}
+
 
 void HBFundMatrixEngine::build_matrix_lookups()
 {
@@ -183,10 +194,12 @@ void HBFundMatrixEngine::free_basis()
 }
 
 
-void HBFundMatrixEngine::multiply(const std::vector<double> & w, std::vector<double> & u, const double & a, const std::string & method) const
+void HBFundMatrixEngine::multiply(const sg_vec<double> & w, sg_vec<double> & u, const double & a, const std::string & method) const
 {
     if (method=="multiply_v1_openmp") {
         multiply_v1_openmp(w, u, a);
+	} else if (method=="multiply_v1_openmp_numa") {
+        multiply_v1_openmp_numa(w, u, a);
     } else {
         throw std::runtime_error("Multiply method undefined");
     }
@@ -194,7 +207,7 @@ void HBFundMatrixEngine::multiply(const std::vector<double> & w, std::vector<dou
 
 
 template <class coeff_t>
-void HBFundMatrixEngine::multiply_v1_openmp(const std::vector<coeff_t>& w, std::vector<coeff_t>& u, const double a) const
+void HBFundMatrixEngine::multiply_v1_openmp(const sg_vec<coeff_t>& w, sg_vec<coeff_t>& u, const double a) const
 {
 	// u <--- H*w - a*u
 	
@@ -253,5 +266,78 @@ void HBFundMatrixEngine::multiply_v1_openmp(const std::vector<coeff_t>& w, std::
     std::cout << std::setprecision(2);
     std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
 }
+
+
+
+
+
+
+template <class coeff_t>
+void HBFundMatrixEngine::multiply_v1_openmp_numa(const sg_vec<coeff_t>& w, sg_vec<coeff_t>& u, const double a) const
+{
+	// u <--- H*w - a*u
+	
+	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+	
+	#pragma omp parallel for schedule(static)
+	for (UINT64 i = 0; i < dimension_; ++i) {
+		u[i] *= -a;
+	}
+
+	for (size_t b = 0; b < lattice_.bonds.size(); ++b)
+	{	
+		//std::chrono::time_point<std::chrono::high_resolution_clock> tb0 = std::chrono::high_resolution_clock::now();
+		const auto& bond = lattice_.bonds[b];
+		const double J = bond.couplingValue;
+		
+		#pragma omp parallel for schedule(static)
+		for (UINT64 i = 0; i < dimension_; ++i) {
+			work_[i] = w[i];
+		}
+		
+		for (unsigned int j=0; j<bond.ops.size(); ++j)
+		{
+			const unsigned int k = bond.ops[j].getk();
+		
+			#pragma omp parallel for schedule(static)
+			for (UINT64 i=0; i<dimension_; ++i)
+			{	
+				if (P_[k][i]==-1) {
+					work_[i] *= -1;
+				} else if (P_[k][i]>0) {
+					const UINT64 index = P_[k][i];
+					const double rho = 1.0/static_cast<double>(P_[k][index]);
+					const double work_i = work_[i];
+					const double work_index = work_[index];
+					const double eta = std::sqrt(1.0 - rho*rho);
+					work_[i] = -rho * work_i + eta * work_index;
+					work_[index] = eta * work_i + rho * work_index;
+				}
+			}
+		}
+		
+		// update Lanczos vector
+		#pragma omp parallel for schedule(static)
+		for (UINT64 i = 0; i < dimension_; ++i) {
+			u[i] += J * work_[i];
+		}
+		
+		//std::chrono::time_point<std::chrono::high_resolution_clock> tb1 = std::chrono::high_resolution_clock::now();
+		//std::chrono::duration<double, std::milli> dt_bond = tb1 - tb0;
+		//double t_bond = dt_bond.count();
+		//std::cout << "Time bond " << std::right << std::setw(2) << b << "/" << lattice_.get_nbonds() << ": " 
+		//		  << "[" << std::right << std::setw(2) << bond.ops.size() << "] : "
+		//		  << std::setw(9) << std::right << t_bond << " ms" << std::endl;
+	}
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
+    double t_total = dt_total.count();
+    std::cout << std::fixed;
+    std::cout << std::setprecision(2);
+    std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+}
+
+
 
 } // namespace sun

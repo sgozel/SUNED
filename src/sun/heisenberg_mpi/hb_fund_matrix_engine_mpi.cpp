@@ -17,6 +17,7 @@
 #include "../syt_usage/bsyt_usage.h"
 #endif
 
+
 namespace sun {
 
 HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
@@ -60,6 +61,18 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 		lanczosparams_.print();
 		lattice_.print_sites();
 		lattice_.print_bonds();
+	}
+}
+
+
+void HBFundMatrixEngineMPI::initEngine()
+{
+	HBFundEngineMPI::initEngine();
+	
+	work_.resize(mpi_dimension_);
+	#pragma omp parallel for schedule(static)
+	for (UINT64 i = 0; i < mpi_dimension_; ++i) {
+		work_[i] = 0.0;
 	}
 }
 
@@ -383,10 +396,12 @@ bool HBFundMatrixEngineMPI::load_matrix(const unsigned int k)
 }
 
 
-void HBFundMatrixEngineMPI::multiply(const std::vector<double> & w, std::vector<double> & u, const double & a, const std::string & method) const
+void HBFundMatrixEngineMPI::multiply(const sg_vec<double> & w, sg_vec<double> & u, const double & a, const std::string & method) const
 {
     if (method=="multiply_mpi_matrix_v1") {
         multiply_mpi_matrix_v1(w, u, a);
+	} else if (method=="multiply_mpi_matrix_v1_numa") {
+        multiply_mpi_matrix_v1_numa(w, u, a);
 	} else {
         std::cerr << "Multiply method undefined" << std::endl;
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -395,7 +410,7 @@ void HBFundMatrixEngineMPI::multiply(const std::vector<double> & w, std::vector<
 
 
 template <class coeff_t>
-void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const std::vector<coeff_t>& w, std::vector<coeff_t>& u, const double a) const
+void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_vec<coeff_t>& u, const double a) const
 {
 	// u <--- H*w - a*u
 	
@@ -403,7 +418,7 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const std::vector<coeff_t>& w
 	
 	std::for_each(u.begin(), u.end(), [a](coeff_t& el) {el*=(-a);});
 
-	std::vector<coeff_t> work(mpi_dimension_); // copy of local Lanczos vector
+	sg_vec<coeff_t> work(mpi_dimension_); // copy of local Lanczos vector
 
 	std::vector<int64_t> sendrecvcounts(mpi_world_size_, 0);
 	std::vector<int64_t> srdispls(mpi_world_size_, 0);
@@ -502,5 +517,126 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const std::vector<coeff_t>& w
 		std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
 	}
 }
+
+
+template <class coeff_t>
+void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1_numa(const sg_vec<coeff_t>& w, sg_vec<coeff_t>& u, const double a) const
+{
+	// u <--- H*w - a*u
+	
+	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+	
+	#pragma omp parallel for schedule(static)
+	for (UINT64 i = 0; i < mpi_dimension_; ++i) {
+		u[i] *= -a;
+	}
+
+	std::vector<int64_t> sendrecvcounts(mpi_world_size_, 0);
+	std::vector<int64_t> srdispls(mpi_world_size_, 0);
+
+	// one allocation before loop on all bonds and all transpositions in 
+	// each bond. Allocation size based on the max number of off-diagonal
+	// elements accross all transpositions
+	const UINT64 max_offdiag = *std::max_element(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end());
+	
+	std::vector<coeff_t> send_coeffs(max_offdiag); // use sg_vec instead
+	std::vector<coeff_t> recv_coeffs(max_offdiag); // use sg_vec instead
+
+	for (const auto& bond : lattice_.bonds)
+	{
+		#pragma omp parallel for schedule(static)
+		for (UINT64 i = 0; i < mpi_dimension_; ++i) {
+			work_[i] = w[i];
+		}
+		
+		for (unsigned int j=0; j<bond.ops.size(); ++j)
+		{
+			const unsigned int k = bond.ops[j].getk();
+			
+			for (int r=0; r<mpi_world_size_; ++r) {
+				sendrecvcounts[r] = static_cast<int64_t>(mpi_offdiag_nodes_[k][r]);
+				srdispls[r] = static_cast<int64_t>(mpi_offdiag_nodes_acc_[k][r]);
+			}
+			
+			// gather all coefficients from this process which will be 
+			// sent to all processes
+			//#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			#pragma omp parallel for schedule(static)
+			for(UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
+				const double rho = 1.0/static_cast<double>(P_[k][mpi_local_index_base_[k][i]]);
+				send_coeffs[i] = work_[mpi_local_index_base_[k][i]] * std::sqrt(1.0-rho*rho);
+			}
+			
+			//======================================
+			// MPI communication of coefficients
+			//======================================
+			
+			/*
+			MPI_Alltoallv(
+				send_coeffs.data(), 
+				sendrecvcounts.data(), 
+				srdispls.data(), 
+				mpi_type<coeff_t>(), 
+				recv_coeffs.data(), 
+				sendrecvcounts.data(), 
+				srdispls.data(), 
+				mpi_type<coeff_t>(), 
+				MPI_COMM_WORLD
+			);
+			*/
+			
+			// Allow large buffers by doing chunked communication
+			
+			alltoallv(
+				send_coeffs,
+				sendrecvcounts,
+				srdispls,
+				recv_coeffs,
+				sendrecvcounts,
+				srdispls,
+				MPI_COMM_WORLD
+			);
+			
+			//======================================
+			// Perform update of <work> array
+			//======================================
+			
+			// All diagonal terms
+			//#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			#pragma omp parallel for schedule(static)
+			for (UINT64 i=0; i<mpi_dimension_; ++i) {
+				work_[i] *= 1.0/static_cast<double>(P_[k][i]);
+			}
+			
+			// All off-diagonal terms - no risk of data race at this point
+			//#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			#pragma omp parallel for schedule(static)
+			for (UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
+				work_[mpi_local_index_friend_[k][i]] += recv_coeffs[i];
+			}
+		}
+		
+		//===========================
+		// UPDATE OF LANCZOS VECTOR
+		//===========================
+		const double J = bond.couplingValue;
+		#pragma omp parallel for schedule(static)
+		for (UINT64 i=0; i<mpi_dimension_; ++i) {
+			u[i] += J * work_[i];
+		}
+	}
+	
+	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
+    double t_total = dt_total.count();
+    
+    if (mpi_rank_==0) {
+		std::cout << std::fixed;
+		std::cout << std::setprecision(2);
+		std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+	}
+}
+
+
 
 } // namespace sun
