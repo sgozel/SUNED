@@ -3,12 +3,14 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <utility>
 #include <mpi.h>
 
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 #include "version.h"
+#include "common/numa.h"
 #include "sun/heisenberg_mpi/hb_fund_matrix_engine_mpi.h"
 
 
@@ -51,10 +53,23 @@ int main(int argc, char* argv[])
 	engine.build_matrix_lookups();
 
 #ifdef SG_USE_NUMA
-	engine.eig("multiply_mpi_matrix_v1_numa");
+	const std::string mvm_method("multiply_mpi_matrix_v1_numa");
 #else
-	engine.eig("multiply_mpi_matrix_v1");
+	const std::string mvm_method("multiply_mpi_matrix_v1");
 #endif
+	
+	// Compute eigenvalue
+	double energy = engine.eigenvalue(mvm_method);
+	if (mpi_rank == 0) {
+		std::cout << "In main: from eigenvalue(), energy = " << energy << std::endl;
+	}
+	
+	// Compute eigenpair
+	std::pair<double, sg_vec<double>> eigpair = engine.eigenpair(mvm_method);
+    if (mpi_rank == 0) {
+		std::cout << "In main: from eigenpair(), energy = " << eigpair.first << std::endl;
+	}
+    engine.check_eigvec(eigpair, mvm_method);
 	
 	MPI_Finalize();
 	

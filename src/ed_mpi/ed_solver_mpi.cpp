@@ -75,11 +75,11 @@ void EDSolverMPI::print_mpi_details() const
 }
 
 
-double EDSolverMPI::eig(const std::string & method)
+double EDSolverMPI::eigenvalue(const std::string & method)
 {
 	if (mpi_rank_ == 0) {
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
-		std::cout << "Start eig() ..." << std::endl;
+		std::cout << "Start eigenvalue() ..." << std::endl;
 		std::cout << "dimension = " << dimension_ << std::endl;
 	}
 
@@ -104,21 +104,6 @@ double EDSolverMPI::eig(const std::string & method)
         multiply(v, w, 0.0, method); // w <--- H*v
     };
     
-#ifdef SG_LANCZOS_EIGVEC
-	
-	if (mpi_rank_==0) {
-		std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
-	}
-	
-	sg_vec<double> GS(0);
-	lanczosmpi::Tmatrix tmat = lanczosmpi::lanczos_eigvec<double>(mult, converged, mpi_dimension_, GS, lanczosparams_);
-	
-	if (mpi_rank_==0) {
-		std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - done" << std::endl;
-	}
-	
-#else
-	
 	if (mpi_rank_==0) {
 		std::cout << "Multiply with 3 Lanczos vectors - eigenvalue only - start" << std::endl;
 	}
@@ -129,20 +114,12 @@ double EDSolverMPI::eig(const std::string & method)
 		std::cout << "Multiply with 3 Lanczos vectors - eigenvalue only - done" << std::endl;
 	}
 	
-#endif
-	
 	if (tmat.size() == 0) {
         std::cerr << "ERROR : EDSolverMPI : output Tmatrix is zero dimensional." << std::endl;
         MPI_Abort(MPI_COMM_WORLD, 1);
 	}
 	
 	std::vector<double> eigvals = tmat.eigenvalues();
-	
-#ifdef SG_LANCZOS_EIGVEC
-	if (control_eigvec) {
-		check_eigvec(tmat, GS, mult);
-	}
-#endif
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
@@ -158,14 +135,80 @@ double EDSolverMPI::eig(const std::string & method)
 }
 
 
-template <typename type_mult>
-void EDSolverMPI::check_eigvec(lanczosmpi::Tmatrix & tmat, const sg_vec<double>& GS, type_mult mult) const
+
+
+std::pair<double, sg_vec<double>> EDSolverMPI::eigenpair(const std::string & method)
 {
+	if (mpi_rank_ == 0) {
+		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+		std::cout << "Start eigenpair() ..." << std::endl;
+		std::cout << "dimension = " << dimension_ << std::endl;
+	}
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+
+    if (dimension_<lanczosparams_.k) {
+        lanczosparams_.k = (unsigned int) dimension_;
+    }
+    unsigned int nshow = 4;
+    if (dimension_<nshow) {
+        nshow = static_cast<unsigned int>(dimension_);
+    } else {
+        nshow = std::max(nshow, lanczosparams_.k);
+    }
+
+    auto converged = [&lanczosparams=lanczosparams_](lanczosmpi::Tmatrix & tmat) -> bool {
+        return lanczosmpi::convergence(tmat, lanczosparams);
+    };
+    
+    // multiplication for 3 Lanczos vectors
+    auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w) {
+        multiply(v, w, 0.0, method); // w <--- H*v
+    };
+	
+	if (mpi_rank_==0) {
+		std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
+	}
+	
+	sg_vec<double> GS(0);
+	lanczosmpi::Tmatrix tmat = lanczosmpi::lanczos_eigvec<double>(mult, converged, mpi_dimension_, GS, lanczosparams_);
+	
+	if (mpi_rank_==0) {
+		std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - done" << std::endl;
+	}
+	
+	if (tmat.size() == 0) {
+        std::cerr << "ERROR : EDSolverMPI : output Tmatrix is zero dimensional." << std::endl;
+        MPI_Abort(MPI_COMM_WORLD, 1);
+	}
+	
+	std::vector<double> eigvals = tmat.eigenvalues();
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
+    double t_total = dt_total.count();
+	if (mpi_rank_ == 0) {
+		std::cout << "----------------------------" << std::endl;
+		std::cout << std::fixed;
+		std::cout << std::setprecision(2);
+		std::cout << "eig time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+	}
+	
+    return {eigvals[0], GS};
+}
+
+
+double EDSolverMPI::check_eigvec(const std::pair<double, sg_vec<double>>& eigpair, const std::string & method) const
+{
+	auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w) {
+        multiply(v, w, 0.0, method); // w <--- H*v - a*w
+    };
+	
+	const double energy = eigpair.first;
+	const sg_vec<double>& GS = eigpair.second;
+	
 	sg_vec<double> HGS(mpi_dimension_);
-	
-	mult(GS, HGS); // HGS <--- H*GS - 0.0*HGS
-	
-	const double energy = tmat.eigenvalues()[0];
+	mult(GS, HGS); // HGS <--- H*GS
 
 #ifdef SG_USE_NUMA
 	double distance_loc = 0.0;
@@ -185,7 +228,14 @@ void EDSolverMPI::check_eigvec(lanczosmpi::Tmatrix & tmat, const sg_vec<double>&
 									return d * d;});
 #endif
 	double distance = 0.0;
-	MPI_Allreduce(&distance_loc, &distance, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+	MPI_Allreduce(
+		&distance_loc, 
+		&distance, 
+		1, 
+		MPI_DOUBLE, 
+		MPI_SUM, 
+		MPI_COMM_WORLD
+	);
 	distance = std::sqrt(distance);
 	
 	if (mpi_rank_ == 0) {
@@ -196,4 +246,5 @@ void EDSolverMPI::check_eigvec(lanczosmpi::Tmatrix & tmat, const sg_vec<double>&
 				  << distance << std::endl;
 		std::cout.flags(coutflags);
 	}
+	return distance;
 }
