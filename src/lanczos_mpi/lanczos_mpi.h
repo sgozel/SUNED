@@ -80,7 +80,6 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 
 #include "../lanczos/lanczos_utils.hpp"
 
-//#include "lanczos_checkpointing_mpi.hpp" // <-- this should be replaced by the next line
 #include "../lanczos/lanczos_checkpointing.hpp"
 
 #include "lanczos_three_vectors_mpi.hpp"
