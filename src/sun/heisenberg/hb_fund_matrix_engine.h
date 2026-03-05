@@ -38,7 +38,11 @@ private:
 	bool load_matrix(const unsigned int k);
 
 private:
+#ifdef SG_USE_NUMA
+	std::vector<sg_vec<typePk>> P_;
+#else
 	std::vector<std::vector<typePk>> P_;
+#endif
 	bool dump_matrices_;
 	std::string matrix_dump_path_;
     

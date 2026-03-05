@@ -89,7 +89,8 @@ void HBFundMatrixEngine::build_matrix_lookups()
             continue;
         }
 		
-		#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+		//#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+		#pragma omp parallel for schedule(static)
 		for (UINT64 i=0; i<dimension_; ++i) {
 			
 			const int rowk = Y_[i].get(k);
@@ -175,15 +176,25 @@ bool HBFundMatrixEngine::load_matrix(const unsigned int k)
                   << " (stored=" << stored_dimension << ", expected=" << dimension_ << ")" << std::endl;
         return false;
     }
-
+	
     // Read P_[k]
-    P_[k].resize(dimension_);
     in.read(reinterpret_cast<char*>(P_[k].data()), dimension_ * sizeof(typePk));
     if (!in) {
         std::cerr << "Warning: failed to read matrix data from file: " << filename << std::endl;
         return false;
     }
-
+#ifdef SG_USE_NUMA
+    // Re-touch to restore NUMA layout
+	{
+		sg_vec<typePk> tmp(dimension_);
+		#pragma omp parallel for schedule(static)
+		for (UINT64 i = 0; i < dimension_; ++i) {
+			tmp[i] = P_[k][i];
+		}
+		std::swap(P_[k], tmp);
+	}
+#endif
+	
     return true;
 }
 
