@@ -30,7 +30,7 @@ public:
 	HBEngine(nlohmann::json const& inputParam);
 	
 	void initEngine() = 0;
-	void multiply(const std::vector<double> &, std::vector<double> &, const double &, const std::string &) const = 0;
+	void multiply(const sg_vec<double> &, sg_vec<double> &, const double &, const std::string &) const = 0;
 
 protected:
 	unsigned int N_;

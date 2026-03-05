@@ -16,12 +16,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "no MPI"
+          - name: "no MPI, no NUMA"
             use_mpi: OFF
             mpi_np: 1
-          - name: "MPI"
+            use_numa: OFF
+          - name: "no MPI, NUMA"
+            use_mpi: OFF
+            mpi_np: 1
+            use_numa: ON
+          - name: "MPI, no NUMA"
             use_mpi: ON
             mpi_np: 2
+            use_numa: OFF
+          - name: "MPI, NUMA"
+            use_mpi: ON
+            mpi_np: 2
+            use_numa: ON
 
     steps:
       - name: Checkout
@@ -45,6 +55,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DUSE_MPI=${{ matrix.use_mpi }} \
             -DMPI_TEST_NP=${{ matrix.mpi_np }} \
+            -DUSE_NUMA=${{ matrix.use_numa }} \
             -DBUILD_TESTING=ON
 
       - name: Build

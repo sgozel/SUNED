@@ -2,7 +2,15 @@
 
 [![Tests](https://github.com/sgozel/SUNED/actions/workflows/tests.yml/badge.svg?branch=develop)](https://github.com/sgozel/SUNED/actions/workflows/tests.yml)
 
-SU($N$)ED is a high-performance C++ exact diagonalization software for solving the SU($N$) Heisenberg model at the largest scales. It implements a maximally efficient storage strategy for standard Young tableaux (SYTs), as well as on-node parallelization with OpenMP and distributed-memory multi-node parallelization with MPI.
+SU($N$)ED is a high-performance C++ exact diagonalization software for solving the SU($N$) Heisenberg model at the largest scales. 
+
+Some of the features of SU($N$)ED are:
+
+- maximally efficient storage strategy for standard Young tableaux (SYTs)
+- fast indexing of SYTs
+- NUMA-aware allocation of Lanczos vectors
+- on-node parallelization with OpenMP
+- distributed-memory multi-node parallelization with MPI
 
 ## Requirements
 
@@ -49,10 +57,17 @@ The following options can be provided to the cmake command to customize the buil
 | `USE_MPI` | Build MPI implementation for multi-node distributed-memory version | `OFF` |
 | `LANCZOS_EIGVEC` | Build Lanczos algorithm with eigenvector extraction | `OFF` |
 | `LANCZOS_TWO_VECTORS` | Build Lanczos with two vectors | `OFF` |
+| `USE_NUMA` | Use NUMA-aware memory allocation of Lanczos vectors | `OFF` |
 | `USE_BASIC_SYT` | Build with basic storage strategy for SYTs | `OFF` |
 
 `USE_BASIC_SYT=ON` leads to a larger memory usage and a less efficient (slower) search across SYTs. It is also slower when applying transpositions on SYTs. It is thus not recommended for production runs.
 
+When using NUMA-aware allocation and initialization, the following should be the best choice:
+```
+export OMP_NUM_THREADS=...
+export OMP_PROC_BIND=spread
+export OMP_PLACES=cores
+```
 
 ## Input parameter file
 

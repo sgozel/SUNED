@@ -13,14 +13,21 @@
 #include <cmath>
 #include <cstdio>
 #include <stdexcept>
+#include <omp.h>
 
 #include "../tmatrix/tmatrix.h"
 #include "lanczosparams.h"
+#include "../common/numa.h"
+
 
 namespace lanczos {
 
 template<class coeff_t>
-void lanczos_init_vector(std::vector<coeff_t>& v, const UINT64 dimension, const unsigned int seed);
+void lanczos_init_vector(sg_vec<coeff_t>& v, const UINT64 dimension, const unsigned int seed);
+
+
+template<class coeff_t>
+void numa_lanczos_init_vector(sg_vec<coeff_t>& v, const UINT64 dimension, const unsigned int seed);
 
 
 std::vector<double> residual(Tmatrix & tmat, const unsigned int k);
@@ -36,19 +43,24 @@ void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosPar
 
 
 template<typename coeff_t>
-void dump_eigvec(const std::vector<coeff_t>& eigvec, const unsigned int index, const LanczosParams & lp);
+void dump_eigvec(const sg_vec<coeff_t>& eigvec, const unsigned int index, const LanczosParams & lp);
 
 
 // y <--- y + a*x
 template<class coeff_t>
-void axpy(std::vector<coeff_t>& y, coeff_t a, const std::vector<coeff_t>& x);
+void axpy(sg_vec<coeff_t>& y, coeff_t a, const sg_vec<coeff_t>& x);
+
+
+// NUMA-Aware y <--- y + a*x
+template<class coeff_t>
+void numa_axpy(sg_vec<coeff_t>& y, coeff_t a, const sg_vec<coeff_t>& x);
 
 
 // Perform one Lanczos step with 3 Lanczos vectors
 template <class coeff_t, class type_mult>
-inline void lanczos_step(std::vector<coeff_t> &, 
-						 std::vector<coeff_t> &, 
-						 std::vector<coeff_t> &,
+inline void lanczos_step(sg_vec<coeff_t> &, 
+						 sg_vec<coeff_t> &, 
+						 sg_vec<coeff_t> &,
                          double &, 
                          double &, 
                          type_mult);
@@ -67,17 +79,17 @@ template <class coeff_t, class type_mult, class type_conv>
 Tmatrix lanczos_eigvec(const type_mult & multiply, 
 					   const type_conv & converge, 
 					   const UINT64 dimension, 
-					   std::vector<coeff_t>& eigvec, 
+					   sg_vec<coeff_t>& eigvec, 
 					   const LanczosParams & lp);
 
 
 // Perform one Lanczos step with 2 Lanczos vectors
 template <class coeff_t, class type_mult>
-inline void lanczos_step_two_vectors(std::vector<coeff_t> &, 
-						 std::vector<coeff_t> &, 
-                         double &, 
-                         double &, 
-                         type_mult);
+inline void lanczos_step_two_vectors(sg_vec<coeff_t> &, 
+									 sg_vec<coeff_t> &, 
+									 double &, 
+									 double &, 
+									 type_mult);
 
 
 // Lanczos diagonalization with 2 Lanczos vectors -- no output eigenvector
@@ -93,7 +105,7 @@ template <class coeff_t, class type_mult, class type_conv>
 Tmatrix lanczos_two_vectors_eigvec(const type_mult & multiply, 
 								   const type_conv & converge, 
 								   const UINT64 dimension, 
-								   std::vector<coeff_t> & eigvec, 
+								   sg_vec<coeff_t> & eigvec, 
 								   const LanczosParams & lp);
 
 

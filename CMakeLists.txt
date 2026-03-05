@@ -17,9 +17,11 @@ find_package(OpenMP REQUIRED)
 find_package(BLAS REQUIRED)
 
 option(USE_BASIC_SYT "Use basic SYT implementation" OFF)
-option(USE_MPI "Build the MPI target (main_mpi) instead of the default target (main)" OFF)
+
+option(USE_NUMA "Enable NUMA-aware allocation" OFF)
 option(LANCZOS_EIGVEC "Build ED solver with eigenvector extraction" OFF)
 option(LANCZOS_TWO_VECTORS "Build ED solver using two Lanczos vectors" OFF)
+option(USE_MPI "Build the MPI target (main_mpi) instead of the default target (main)" OFF)
 
 #=======================================================================
 # SOURCE GIT INFO
@@ -97,6 +99,9 @@ if(USE_MPI)
     if(LANCZOS_EIGVEC)
         target_compile_definitions(main_mpi PRIVATE SG_LANCZOS_EIGVEC)
     endif()
+    if(USE_NUMA)
+		target_compile_definitions(main_mpi PRIVATE SG_USE_NUMA)
+	endif()
 
     target_include_directories(main_mpi PRIVATE 
 							   ${CMAKE_SOURCE_DIR}/src/
@@ -129,6 +134,9 @@ else()
     if(LANCZOS_TWO_VECTORS)
         target_compile_definitions(main PRIVATE SG_LANCZOS_TWO_VECTORS)
     endif()
+    if(USE_NUMA)
+		target_compile_definitions(main PRIVATE SG_USE_NUMA)
+	endif()
 
     target_include_directories(main PRIVATE 
 							   ${CMAKE_SOURCE_DIR}/src/
@@ -186,6 +194,9 @@ add_dependencies(main_syts update_version)
 target_compile_options(main_syts PRIVATE ${COMMON_COMPILE_OPTIONS})
 if(USE_BASIC_SYT)
     target_compile_definitions(main_syts PRIVATE SG_USE_BASIC_SYT)
+endif()
+if(USE_NUMA)
+	target_compile_definitions(main_syts PRIVATE SG_USE_NUMA)
 endif()
 
 target_include_directories(main_syts PRIVATE 

@@ -49,13 +49,13 @@ double EDSolver::eig(const std::string & method)
     //:::::::::::::::::::::::::::::::::::::
     
 #ifdef SG_LANCZOS_TWO_VECTORS
-    auto mult = [&method,this](const std::vector<double> &v, std::vector<double> &w, double a) {
+    auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w, double a) {
         multiply(v, w, a, method); // w <--- H*v - a*w
     };
 #ifdef SG_LANCZOS_EIGVEC
 	// Lanczos 2 vectors with eigenvector
 	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
-	std::vector<double> GS(0);
+	sg_vec<double> GS(0);
 	lanczos::Tmatrix tmat = lanczos::lanczos_two_vectors_eigvec(mult, converged, dimension_, GS, lanczosparams_);
 	bool control_eigvec = true;
 	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue + eigenvector - end" << std::endl;
@@ -66,13 +66,13 @@ double EDSolver::eig(const std::string & method)
 	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue only - end" << std::endl;
 #endif
 #else
-    auto mult = [&method,this](const std::vector<double> &v, std::vector<double> &w) {
+    auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w) {
         multiply(v, w, 0.0, method); // w <--- H*v
     };
 #ifdef SG_LANCZOS_EIGVEC
 	// Lanczos 3 vectors with eigenvector
 	std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
-	std::vector<double> GS(0);
+	sg_vec<double> GS(0);
 	lanczos::Tmatrix tmat = lanczos::lanczos_eigvec<double>(mult, converged, dimension_, GS, lanczosparams_);
 	bool control_eigvec = true;
 	std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - end" << std::endl;
@@ -109,9 +109,9 @@ double EDSolver::eig(const std::string & method)
 
 
 template <typename type_mult>
-void EDSolver::check_eigvec(lanczos::Tmatrix & tmat, const std::vector<double>& GS, type_mult mult) const
+void EDSolver::check_eigvec(lanczos::Tmatrix & tmat, const sg_vec<double>& GS, type_mult mult) const
 {
-	std::vector<double> HGS(dimension_, 0.0);
+	sg_vec<double> HGS(dimension_);
 	
 #ifdef SG_LANCZOS_TWO_VECTORS
 	mult(GS, HGS, 0.0);
@@ -120,12 +120,21 @@ void EDSolver::check_eigvec(lanczos::Tmatrix & tmat, const std::vector<double>& 
 #endif
 	
 	const double energy = tmat.eigenvalues()[0];
-	
+
+#ifdef SG_USE_NUMA
+	double distance = 0.0;
+	#pragma omp parallel for reduction(+:distance) schedule(static)
+	for (UINT64 i = 0; i < dimension_; ++i) {
+		double d = HGS[i] - energy*GS[i];
+		distance += d * d;
+	}
+#else
 	double distance = std::transform_reduce(HGS.begin(), HGS.end(), GS.begin(), 0.0,
 											std::plus<>(),
 											[energy](double hgsel, double gsel) -> double {
 												const double d = hgsel - energy*gsel;
 												return d*d;});
+#endif
 	distance = std::sqrt(distance);
 	std::ios_base::fmtflags coutflags(std::cout.flags());
 	std::cout << "norm(H*GS - E*GS) = " 

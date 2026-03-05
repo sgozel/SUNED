@@ -49,8 +49,12 @@ int main(int argc, char* argv[])
 	
 	engine.initEngine();
 	engine.build_matrix_lookups();
-	
+
+#ifdef SG_USE_NUMA
+	engine.eig("multiply_mpi_matrix_v1_numa");
+#else
 	engine.eig("multiply_mpi_matrix_v1");
+#endif
 	
 	MPI_Finalize();
 	

@@ -100,7 +100,7 @@ double EDSolverMPI::eig(const std::string & method)
     };
     
     // multiplication for 3 Lanczos vectors
-    auto mult = [&method,this](const std::vector<double> &v, std::vector<double> &w) {
+    auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w) {
         multiply(v, w, 0.0, method); // w <--- H*v
     };
     
@@ -110,8 +110,8 @@ double EDSolverMPI::eig(const std::string & method)
 		std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
 	}
 	
-	std::vector<double> GS(0);
-	lanczosmpi::Tmatrix tmat = lanczosmpi::lanczos_eigvec<double>(mult, converged, dimension_, GS, lanczosparams_);
+	sg_vec<double> GS(0);
+	lanczosmpi::Tmatrix tmat = lanczosmpi::lanczos_eigvec<double>(mult, converged, mpi_dimension_, GS, lanczosparams_);
 	
 	if (mpi_rank_==0) {
 		std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - done" << std::endl;
@@ -159,14 +159,22 @@ double EDSolverMPI::eig(const std::string & method)
 
 
 template <typename type_mult>
-void EDSolverMPI::check_eigvec(lanczosmpi::Tmatrix & tmat, const std::vector<double>& GS, type_mult mult) const
+void EDSolverMPI::check_eigvec(lanczosmpi::Tmatrix & tmat, const sg_vec<double>& GS, type_mult mult) const
 {
-	std::vector<double> HGS(mpi_dimension_, 0.0);
+	sg_vec<double> HGS(mpi_dimension_);
 	
-	mult(GS, HGS); // Hv <--- H*GS - 0.0*Hv
+	mult(GS, HGS); // HGS <--- H*GS - 0.0*HGS
 	
 	const double energy = tmat.eigenvalues()[0];
-	
+
+#ifdef SG_USE_NUMA
+	double distance_loc = 0.0;
+	#pragma omp parallel for reduction(+:distance_loc) schedule(static)
+	for (UINT64 i = 0; i < mpi_dimension_; ++i) {
+		double d = HGS[i] - energy*GS[i];
+		distance_loc += d*d;
+	}
+#else
 	double distance_loc = std::transform_reduce(
 								HGS.begin(), HGS.end(),
 								GS.begin(),
@@ -175,6 +183,7 @@ void EDSolverMPI::check_eigvec(lanczosmpi::Tmatrix & tmat, const std::vector<dou
 								[energy](double h_el, double gs_el) -> double {
 									double d = h_el - energy * gs_el;
 									return d * d;});
+#endif
 	double distance = 0.0;
 	MPI_Allreduce(&distance_loc, &distance, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 	distance = std::sqrt(distance);

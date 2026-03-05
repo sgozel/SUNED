@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 
+#include "../../common/numa.h"
+
 
 namespace sun {
 
@@ -18,14 +20,18 @@ class HBFundMatrixEngineMPI : public HBFundEngineMPI
 public:
 	HBFundMatrixEngineMPI(nlohmann::json const& inputParam);
 	
+	void initEngine() override;
 	void build_matrix_lookups();
-	void multiply(const std::vector<double> &, std::vector<double> &, const double &, const std::string &) const override;
+	void multiply(const sg_vec<double> &, sg_vec<double> &, const double &, const std::string &) const override;
 	
 	// Multiply should be:
 	//     multiply(w, u, a, method) : u <---- H*w - a*u
     
 	template <class coeff_t>
-    void multiply_mpi_matrix_v1(const std::vector<coeff_t>&, std::vector<coeff_t>&, const double) const;
+    void multiply_mpi_matrix_v1(const sg_vec<coeff_t>&, sg_vec<coeff_t>&, const double) const;
+    
+    template <class coeff_t>
+    void multiply_mpi_matrix_v1_numa(const sg_vec<coeff_t>&, sg_vec<coeff_t>&, const double) const;
 
 private:
 	void free_basis();
@@ -43,6 +49,9 @@ protected:
 	std::vector<std::vector<INT64>> mpi_offdiag_nodes_acc_;
 	std::vector<std::vector<UINT64>> mpi_local_index_base_;
 	std::vector<std::vector<UINT64>> mpi_local_index_friend_;
+
+private:
+	mutable sg_vec<double> work_;
 };
 
 } // namespace sun

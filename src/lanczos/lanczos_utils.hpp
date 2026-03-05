@@ -2,7 +2,7 @@
 
 
 template<class coeff_t>
-void lanczos_init_vector(std::vector<coeff_t>& v, const UINT64 dimension, const unsigned int seed)
+void lanczos_init_vector(sg_vec<coeff_t>& v, const UINT64 dimension, const unsigned int seed)
 {	
 	v.resize(dimension);
 	v.shrink_to_fit();
@@ -17,13 +17,53 @@ void lanczos_init_vector(std::vector<coeff_t>& v, const UINT64 dimension, const 
     
     double norm = std::inner_product(v.begin(), v.end(), v.begin(), 0.0);
     
-    #ifdef SG_USE_MPI
+#ifdef SG_USE_MPI
     double global_norm;
     MPI_Allreduce(&norm, &global_norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     norm = global_norm;
-    #endif
+#endif
     norm = std::sqrt(norm);
     std::for_each(v.begin(), v.end(), [norm](coeff_t& el) { el/=norm; });
+}
+
+
+template<class coeff_t>
+void numa_lanczos_init_vector(sg_vec<coeff_t>& v, const UINT64 dimension, const unsigned int seed)
+{	
+	v.resize(dimension);
+	v.shrink_to_fit();
+    
+    // Parallel random fill — each thread gets its own seed
+    // This ensures first-touch distributes pages across NUMA nodes
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+        std::mt19937 gen(seed + tid);
+        std::uniform_real_distribution<double> dist(0.0, 1.0);
+        
+        #pragma omp for schedule(static)
+        for (UINT64 i = 0; i < dimension; ++i) {
+            v[i] = dist(gen);
+        }
+    }
+    
+    double norm = 0.0;
+    #pragma omp parallel for reduction(+:norm) schedule(static)
+    for (UINT64 i = 0; i < dimension; ++i) {
+        norm += (double)v[i] * (double)v[i];
+    }
+    
+#ifdef SG_USE_MPI
+    double global_norm;
+    MPI_Allreduce(&norm, &global_norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    norm = global_norm;
+#endif
+    norm = std::sqrt(norm);
+    
+    #pragma omp parallel for schedule(static)
+    for (UINT64 i = 0; i < dimension; ++i) {
+		v[i] /= norm;
+	}
 }
 
 
@@ -168,8 +208,18 @@ void dump_eigvec(const std::vector<coeff_t>& eigvec, const unsigned int index, c
 
 
 template<class coeff_t>
-void axpy(std::vector<coeff_t>& y, coeff_t a, const std::vector<coeff_t>& x) {
+void axpy(sg_vec<coeff_t>& y, coeff_t a, const sg_vec<coeff_t>& x) {
     for (size_t i=0; i<y.size(); ++i) {
         y[i] += a * x[i];
     }
+}
+
+
+template<class coeff_t>
+void numa_axpy(sg_vec<coeff_t>& y, coeff_t a, const sg_vec<coeff_t>& x) {
+    const UINT64 dimension = y.size();
+    #pragma omp parallel for schedule(static)
+    for (UINT64 i = 0; i < dimension; ++i) {
+        y[i] += a * x[i];
+	}
 }
