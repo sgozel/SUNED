@@ -177,15 +177,22 @@ void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosPar
 }
 
 
-template<typename coeff_t>
-void dump_eigvec(const std::vector<coeff_t>& eigvec, const unsigned int index, const LanczosParams & lp)
+template<typename coeff_t, class Alloc>
+void dump_eigvec(const std::vector<coeff_t, Alloc>& eigvec, const unsigned int index, const LanczosParams & lp)
 {
 #ifdef SG_USE_MPI
 	int mpi_rank;
 	MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-	std::string filename = lp.eigvec_folder + std::string("eigvec_") + std::to_string(index) + "_rank" + std::to_string(mpi_rank) + ".bin";
+	std::string filename = lp.eigvec_folder 
+						 + std::string("eigvec_") + std::to_string(index) 
+						 + "_rank" + std::to_string(mpi_rank) 
+						 + "_seed" + std::to_string(lp.seed) 
+						 + ".bin";
 #else
-	std::string filename = lp.eigvec_folder + std::string("eigvec_") + std::to_string(index) + ".bin";
+	std::string filename = lp.eigvec_folder 
+					     + std::string("eigvec_") + std::to_string(index) 
+					     + "_seed" + std::to_string(lp.seed) 
+					     + ".bin";
 #endif
 	
 	std::ofstream out(filename, std::ios::binary);

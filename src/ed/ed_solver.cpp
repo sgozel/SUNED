@@ -22,10 +22,10 @@ EDSolver::EDSolver(nlohmann::json const& inputParam)
 }
 
 
-double EDSolver::eig(const std::string & method)
+double EDSolver::eigenvalue(const std::string & method)
 {
 	std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
-	std::cout << "Start eig() ..." << std::endl;
+	std::cout << "Start eigenvalue() ..." << std::endl;
     std::cout << "dimension = " << dimension_ << std::endl;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
@@ -52,36 +52,18 @@ double EDSolver::eig(const std::string & method)
     auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w, double a) {
         multiply(v, w, a, method); // w <--- H*v - a*w
     };
-#ifdef SG_LANCZOS_EIGVEC
-	// Lanczos 2 vectors with eigenvector
-	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
-	sg_vec<double> GS(0);
-	lanczos::Tmatrix tmat = lanczos::lanczos_two_vectors_eigvec(mult, converged, dimension_, GS, lanczosparams_);
-	bool control_eigvec = true;
-	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue + eigenvector - end" << std::endl;
-#else
 	// Lanczos 2 vectors eigenvalue only
 	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue only - start" << std::endl;
 	lanczos::Tmatrix tmat = lanczos::lanczos_two_vectors<double>(mult, converged, dimension_, lanczosparams_);
 	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue only - end" << std::endl;
-#endif
 #else
     auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w) {
         multiply(v, w, 0.0, method); // w <--- H*v
     };
-#ifdef SG_LANCZOS_EIGVEC
-	// Lanczos 3 vectors with eigenvector
-	std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
-	sg_vec<double> GS(0);
-	lanczos::Tmatrix tmat = lanczos::lanczos_eigvec<double>(mult, converged, dimension_, GS, lanczosparams_);
-	bool control_eigvec = true;
-	std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - end" << std::endl;
-#else
 	// Lanczos 3 vectors eigenvalue only
 	std::cout << "Multiply with 3 Lanczos vectors - eigenvalue only - start" << std::endl;
 	lanczos::Tmatrix tmat = lanczos::lanczos<double>(mult, converged, dimension_, lanczosparams_);
 	std::cout << "Multiply with 3 Lanczos vectors - eigenvalue only - end" << std::endl;
-#endif
 #endif
     
 	if (tmat.size() == 0) {
@@ -89,12 +71,70 @@ double EDSolver::eig(const std::string & method)
 	}
 	
 	std::vector<double> eigvals = tmat.eigenvalues();
-	
-#ifdef SG_LANCZOS_EIGVEC
-	if (control_eigvec) {
-		check_eigvec(tmat, GS, mult);
-	}
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
+    double t_total = dt_total.count();
+	std::cout << "----------------------------" << std::endl;
+	std::cout << std::fixed;
+    std::cout << std::setprecision(2);
+    std::cout << "eigenvalue() time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+
+    return eigvals[0];
+}
+
+
+std::pair<double, sg_vec<double>> EDSolver::eigenpair(const std::string & method)
+{
+	std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+	std::cout << "Start eigenpair() ..." << std::endl;
+    std::cout << "dimension = " << dimension_ << std::endl;
+
+	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+
+    if (dimension_<lanczosparams_.k) {
+        lanczosparams_.k = (unsigned int) dimension_;
+    }
+    unsigned int nshow = 4;
+    if (dimension_<nshow) {
+        nshow = static_cast<unsigned int>(dimension_);
+    } else {
+        nshow = std::max(nshow, lanczosparams_.k);
+    }
+
+    auto converged = [&lanczosparams=lanczosparams_](lanczos::Tmatrix & tmat) -> bool {
+        return lanczos::convergence(tmat, lanczosparams);
+    };
+    
+    //:::::::::::::::::::::::::::::::::::::
+    //:::::::::: DIAGONALIZATION ::::::::::
+    //:::::::::::::::::::::::::::::::::::::
+    
+    sg_vec<double> GS(0);
+    
+#ifdef SG_LANCZOS_TWO_VECTORS
+    auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w, double a) {
+        multiply(v, w, a, method); // w <--- H*v - a*w
+    };
+	// Lanczos 2 vectors with eigenvector
+	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
+	lanczos::Tmatrix tmat = lanczos::lanczos_two_vectors_eigvec(mult, converged, dimension_, GS, lanczosparams_);
+	std::cout << "Multiply with 2 Lanczos vectors - eigenvalue + eigenvector - end" << std::endl;
+#else
+    auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w) {
+        multiply(v, w, 0.0, method); // w <--- H*v
+    };
+	// Lanczos 3 vectors with eigenvector
+	std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - start" << std::endl;
+	lanczos::Tmatrix tmat = lanczos::lanczos_eigvec<double>(mult, converged, dimension_, GS, lanczosparams_);
+	std::cout << "Multiply with 3 Lanczos vectors - eigenvalue + eigenvector - end" << std::endl;
 #endif
+    
+	if (tmat.size() == 0) {
+        throw std::runtime_error("ERROR : EDSolver : output Tmatrix is zero dimensional.");
+	}
+	
+	std::vector<double> eigvals = tmat.eigenvalues();
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
@@ -104,22 +144,22 @@ double EDSolver::eig(const std::string & method)
     std::cout << std::setprecision(2);
     std::cout << "eig time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
 
-    return eigvals[0];
+    return {eigvals[0], GS};
 }
 
 
-template <typename type_mult>
-void EDSolver::check_eigvec(lanczos::Tmatrix & tmat, const sg_vec<double>& GS, type_mult mult) const
+
+double EDSolver::check_eigvec(const std::pair<double, sg_vec<double>>& eigpair, const std::string & method) const
 {
+	auto mult = [&method,this](const sg_vec<double> &v, sg_vec<double> &w) {
+        multiply(v, w, 0.0, method); // w <--- H*v - a*w
+    };
+	
+	const double energy = eigpair.first;
+	const sg_vec<double>& GS = eigpair.second;
+
 	sg_vec<double> HGS(dimension_);
-	
-#ifdef SG_LANCZOS_TWO_VECTORS
-	mult(GS, HGS, 0.0);
-#else
-	mult(GS, HGS);
-#endif
-	
-	const double energy = tmat.eigenvalues()[0];
+	mult(GS, HGS); // HGS <--- H*GS
 
 #ifdef SG_USE_NUMA
 	double distance = 0.0;
@@ -141,4 +181,6 @@ void EDSolver::check_eigvec(lanczos::Tmatrix & tmat, const sg_vec<double>& GS, t
 			  << std::setprecision(4) << std::scientific 
 			  << distance << std::endl;
 	std::cout.flags(coutflags);
+	
+	return distance;
 }

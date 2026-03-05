@@ -25,7 +25,11 @@ public:
 	// Multiply should be:
 	//     multiply(w, u, a, method) : u <---- H*w - a*u
 	
-	double eig(const std::string &);
+	double eigenvalue(const std::string &);
+	
+	std::pair<double, sg_vec<double>> eigenpair(const std::string &);
+	
+	double check_eigvec(const std::pair<double, sg_vec<double>>&, const std::string & method) const;
 
 protected:
 	void mpi_get_local_dimension();
@@ -33,10 +37,6 @@ protected:
 	UINT64 mpi_local_index_from_global_index(const UINT64 i) const;
 	
 	virtual void print_mpi_details() const;
-
-private:
-	template <typename type_mult>
-	void check_eigvec(lanczosmpi::Tmatrix & tmat, const sg_vec<double>& GS, type_mult mult) const;
 
 protected:
 	UINT64 dimension_;

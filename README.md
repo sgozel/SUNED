@@ -55,7 +55,6 @@ The following options can be provided to the cmake command to customize the buil
 | Option | Description | Default value |
 | ------ | ------ | ------ |
 | `USE_MPI` | Build MPI implementation for multi-node distributed-memory version | `OFF` |
-| `LANCZOS_EIGVEC` | Build Lanczos algorithm with eigenvector extraction | `OFF` |
 | `LANCZOS_TWO_VECTORS` | Build Lanczos with two vectors | `OFF` |
 | `USE_NUMA` | Use NUMA-aware memory allocation of Lanczos vectors | `OFF` |
 | `USE_BASIC_SYT` | Build with basic storage strategy for SYTs | `OFF` |

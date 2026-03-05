@@ -4,6 +4,7 @@
 #define ED_SOLVER_H
 
 #include <string>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
@@ -23,11 +24,11 @@ public:
 	// Multiply should be:
 	//     multiply(w, u, a, method) : u <---- H*w - a*u
 	
-	double eig(const std::string &);
-
-private:
-	template <typename type_mult>
-	void check_eigvec(lanczos::Tmatrix & tmat, const sg_vec<double>& GS, type_mult mult3vecs) const;
+	double eigenvalue(const std::string &);
+	
+	std::pair<double, sg_vec<double>> eigenpair(const std::string &);
+	
+	double check_eigvec(const std::pair<double, sg_vec<double>>&, const std::string & method) const;
 
 protected:
 	UINT64 dimension_;

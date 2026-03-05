@@ -42,8 +42,8 @@ bool convergence(Tmatrix & tmat, const LanczosParams & lp);
 void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosParams & lp, const bool isConverged);
 
 
-template<typename coeff_t>
-void dump_eigvec(const sg_vec<coeff_t>& eigvec, const unsigned int index, const LanczosParams & lp);
+template<typename coeff_t, class Alloc>
+void dump_eigvec(const std::vector<coeff_t, Alloc>& eigvec, const unsigned int index, const LanczosParams & lp);
 
 
 // y <--- y + a*x

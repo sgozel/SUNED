@@ -374,7 +374,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 	}
     
     if (lp.dump_eigvec == true) {
-		dump_eigvec<coeff_t>(eigvec, 0, lp);
+		dump_eigvec(eigvec, 0, lp);
 	}
     
     if ((lp.checkpointing) && (isConverged)) {
