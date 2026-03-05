@@ -17,9 +17,7 @@ find_package(OpenMP REQUIRED)
 find_package(BLAS REQUIRED)
 
 option(USE_BASIC_SYT "Use basic SYT implementation" OFF)
-
 option(USE_NUMA "Enable NUMA-aware allocation" OFF)
-option(LANCZOS_EIGVEC "Build ED solver with eigenvector extraction" OFF)
 option(LANCZOS_TWO_VECTORS "Build ED solver using two Lanczos vectors" OFF)
 option(USE_MPI "Build the MPI target (main_mpi) instead of the default target (main)" OFF)
 
