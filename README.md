@@ -8,7 +8,7 @@ Some of the features of SU($N$)ED are:
 
 - maximally efficient storage strategy for standard Young tableaux (SYTs)
 - fast indexing of SYTs
-- NUMA-aware allocation of Lanczos vectors
+- NUMA-aware first-touch allocation of large arrays
 - on-node parallelization with OpenMP
 - distributed-memory multi-node parallelization with MPI
 
@@ -18,7 +18,7 @@ Some of the features of SU($N$)ED are:
 - C++ compiler with standard 20
 - OpenBLAS
 - OpenMP
-- MPI (for multi-node, distributed-memory version of the code)
+- (optional) MPI
 
 SU($N$)ED uses [nlohmann/json] for input parameter files. The single-source header of this library is located in [`src/nlohmann/`](./src/nlohmann/).
 
@@ -40,12 +40,7 @@ cd ./SUNED
 
 You can then simply invoke the `Makefile` at the root of the directory:
 ```
-make build
-```
-
-To build the MPI version, call:
-```
-make build_mpi
+make
 ```
 
 ## Options
@@ -161,6 +156,19 @@ The coupling name(s) must then be provided in the `.json` file with their numeri
 ...
 ```
 
+## Tests
+
+To compile tests:
+```
+make build_tests_all
+```
+and run them with:
+```
+ctest --verbose --output-on-failure --test-dir build/testing
+ctest --verbose --output-on-failure --test-dir build/testing_numa
+ctest --verbose --output-on-failure --test-dir build/testing_mpi
+ctest --verbose --output-on-failure --test-dir build/testing_mpi_numa
+```
 
 ## License
 
