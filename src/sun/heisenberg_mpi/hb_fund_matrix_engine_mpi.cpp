@@ -68,9 +68,9 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 }
 
 
-void HBFundMatrixEngineMPI::initEngine()
+void HBFundMatrixEngineMPI::init()
 {
-	HBFundEngineMPI::initEngine();
+	HBFundEngineMPI::init();
 	
 	work_.resize(mpi_dimension_);
 #ifdef SG_USE_NUMA

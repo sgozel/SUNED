@@ -40,9 +40,9 @@ HBFundMatrixEngine::HBFundMatrixEngine(nlohmann::json const& inputParam)
 	}
 }
 
-void HBFundMatrixEngine::initEngine()
+void HBFundMatrixEngine::init()
 {
-	HBFundEngine::initEngine();
+	HBFundEngine::init();
 	
 	work_.resize(dimension_);
 	#pragma omp parallel for schedule(static)

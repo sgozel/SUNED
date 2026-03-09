@@ -20,7 +20,7 @@ class HBFundMatrixEngineMPI : public HBFundEngineMPI
 public:
 	HBFundMatrixEngineMPI(nlohmann::json const& inputParam);
 	
-	void initEngine() override;
+	void init() override;
 	void build_matrix_lookups();
 	void multiply(const sg_vec<double> &, sg_vec<double> &, const double &, const std::string &) const override;
 	

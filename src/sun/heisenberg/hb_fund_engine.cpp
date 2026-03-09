@@ -44,7 +44,7 @@ HBFundEngine::HBFundEngine(nlohmann::json const& inputParam)
 }
 
 
-void HBFundEngine::initEngine()
+void HBFundEngine::init()
 {	
 	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
 	
@@ -70,7 +70,7 @@ void HBFundEngine::initEngine()
 	std::cout << "SYTs Memory: " << sizeof(Y_[0])*((double)Y_.size()/factor) << F << std::endl;
 	#endif
 	
-	time(t0, std::string("initEngine"));
+	time(t0, std::string("init"));
 }
 
 } // namespace sun

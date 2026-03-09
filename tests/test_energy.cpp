@@ -40,7 +40,7 @@ TEST(HBFundMatrixEngine, EnergySU3Chain)
 		};
 		
 		sun::HBFundMatrixEngine engine(inputParam);
-		engine.initEngine();
+		engine.init();
 		engine.build_matrix_lookups();
 		double energy = engine.eigenvalue(mvm_method);
 		
@@ -74,7 +74,7 @@ TEST(HBFundMatrixEngine, NumaEnergySU3Chain)
 		};
 		
 		sun::HBFundMatrixEngine engine(inputParam);
-		engine.initEngine();
+		engine.init();
 		engine.build_matrix_lookups();
 		double energy = engine.eigenvalue(mvm_method);
 		
@@ -109,7 +109,7 @@ TEST(HBFundMatrixEngine, NumaEigenpairSU3Chain)
 		};
 		
 		sun::HBFundMatrixEngine engine(inputParam);
-		engine.initEngine();
+		engine.init();
 		engine.build_matrix_lookups();
 		std::pair<double, sg_vec<double>> eigpair = engine.eigenpair(mvm_method);
 		
@@ -148,7 +148,7 @@ TEST(HBFundMatrixEngine, NumaCheckpointing)
 	};
 	
 	sun::HBFundMatrixEngine engine1(inputParam1);
-	engine1.initEngine();
+	engine1.init();
 	engine1.build_matrix_lookups();
 	double energy1 = engine1.eigenvalue(mvm_method);
 	
@@ -167,7 +167,7 @@ TEST(HBFundMatrixEngine, NumaCheckpointing)
 	};
 	
 	sun::HBFundMatrixEngine engine2(inputParam2);
-	engine2.initEngine();
+	engine2.init();
 	engine2.build_matrix_lookups();
 	double energy2 = engine2.eigenvalue(mvm_method);
 	
@@ -200,7 +200,7 @@ TEST(HBFundMatrixFreeEngine, EnergySU3Chain)
 		};
 		
 		sun::HBFundMatrixFreeEngine engine(inputParam);
-		engine.initEngine();
+		engine.init();
 		double energy = engine.eigenvalue(mvm_method);
 		
 		EXPECT_NEAR(energy, testsample.energy, 1e-12);
