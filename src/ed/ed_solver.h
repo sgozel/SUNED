@@ -33,7 +33,6 @@ public:
 protected:
 	UINT64 dimension_;
 	lanczos::LanczosParams lanczosparams_;
-	unsigned int num_threads_;
 	
 	std::string eigvec_folder_;
 };

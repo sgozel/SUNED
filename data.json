@@ -2,7 +2,6 @@
 "N": 3,
 "Ns": 18, 
 "alpha": [6, 6, 6],
-"num_threads": 2,
 "latticefile": "../latticefiles/HB_chain_18_OBC.lattice",
 "J": 1.0,
 "seed": 42,

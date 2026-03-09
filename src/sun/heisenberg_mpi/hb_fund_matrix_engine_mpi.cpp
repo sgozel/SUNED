@@ -107,7 +107,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		
 		const UINT64 index_start = mpi_start_index_[mpi_rank_];
 		
-		#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+		#pragma omp parallel for schedule(guided)
 		for (UINT64 i=0; i<mpi_dimension_; ++i)
 		{	
 			const UINT64 global_i = index_start + i;
@@ -449,7 +449,7 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 			
 			// gather all coefficients from this process which will be 
 			// sent to all processes
-			#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			#pragma omp parallel for schedule(guided)
 			for(UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
 				const double rho = 1.0/static_cast<double>(P_[k][mpi_local_index_base_[k][i]]);
 				send_coeffs[i] = work_[mpi_local_index_base_[k][i]] * std::sqrt(1.0-rho*rho);
@@ -490,13 +490,13 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 			//======================================
 			
 			// All diagonal terms
-			#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			#pragma omp parallel for schedule(guided)
 			for (UINT64 i=0; i<mpi_dimension_; ++i) {
 				work_[i] *= 1.0/static_cast<double>(P_[k][i]);
 			}
 			
 			// All off-diagonal terms - no risk of data race at this point
-			#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			#pragma omp parallel for schedule(guided)
 			for (UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
 				work_[mpi_local_index_friend_[k][i]] += recv_coeffs[i];
 			}
@@ -558,7 +558,7 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1_numa(const sg_vec<coeff_t>& w
 			
 			// gather all coefficients from this process which will be 
 			// sent to all processes
-			//#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			//#pragma omp parallel for schedule(guided)
 			#pragma omp parallel for schedule(static)
 			for(UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
 				const double rho = 1.0/static_cast<double>(P_[k][mpi_local_index_base_[k][i]]);
@@ -600,14 +600,14 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1_numa(const sg_vec<coeff_t>& w
 			//======================================
 			
 			// All diagonal terms
-			//#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			//#pragma omp parallel for schedule(guided)
 			#pragma omp parallel for schedule(static)
 			for (UINT64 i=0; i<mpi_dimension_; ++i) {
 				work_[i] *= 1.0/static_cast<double>(P_[k][i]);
 			}
 			
 			// All off-diagonal terms - no risk of data race at this point
-			//#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			//#pragma omp parallel for schedule(guided)
 			#pragma omp parallel for schedule(static)
 			for (UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
 				work_[mpi_local_index_friend_[k][i]] += recv_coeffs[i];
