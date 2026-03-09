@@ -1,14 +1,19 @@
 
-.PHONY: all \
-        build build_numa \
-        build_mpi build_mpi_numa \
-        build_debug build_debug_mpi 
-        build_test build_tests_numa \
-        build_test_mpi build_tests_mpi_numa \
-        build_tests_all \
-        clean
+.PHONY: 
+	all \
+	build build_numa \
+	build_mpi build_mpi_numa \
+	build_debug build_debug_mpi \
+	build_tests build_tests_numa \
+	build_tests_mpi build_tests_mpi_numa \
+	build_tests_all \
+	clean
 
-all: build
+all: 
+	build \
+	build_numa \
+	build_mpi \
+	build_mpi_numa
 
 build:
 	cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release
@@ -58,4 +63,3 @@ build_tests_all: build_tests build_tests_numa build_tests_mpi build_tests_mpi_nu
 
 clean:
 	rm -rf build
-
