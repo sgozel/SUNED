@@ -43,7 +43,7 @@ int main(int argc, char* argv[])
 	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 	sun::HBFundMatrixEngine engine(inputParam);
-    engine.initEngine();
+    engine.init();
     engine.build_matrix_lookups();
     
     // Compute eigenvalue

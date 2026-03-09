@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
 	
 	sun::HBFundMatrixEngineMPI engine(inputParam);
 	
-	engine.initEngine();
+	engine.init();
 	engine.build_matrix_lookups();
 
 #ifdef SG_USE_NUMA

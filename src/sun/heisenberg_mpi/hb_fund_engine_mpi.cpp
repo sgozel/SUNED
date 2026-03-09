@@ -32,7 +32,7 @@ HBFundEngineMPI::HBFundEngineMPI(nlohmann::json const& inputParam)
 }
 
 
-void HBFundEngineMPI::initEngine()
+void HBFundEngineMPI::init()
 {
 	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
 	
@@ -66,7 +66,7 @@ void HBFundEngineMPI::initEngine()
 		#endif
 	}
 	
-	time(t0, std::string("initEngine"));
+	time(t0, std::string("init"));
 }
 
 } // namespace sun

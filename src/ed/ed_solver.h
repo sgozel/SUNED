@@ -19,7 +19,7 @@ class EDSolver
 public:
 	EDSolver(nlohmann::json const& inputParam);
 
-	virtual void initEngine() = 0;
+	virtual void init() = 0;
 	virtual void multiply(const sg_vec<double> &, sg_vec<double> &, const double &, const std::string &) const = 0;
 	// Multiply should be:
 	//     multiply(w, u, a, method) : u <---- H*w - a*u

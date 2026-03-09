@@ -30,7 +30,7 @@ class HBFundEngineMPI : public HBEngine
 public:
 	HBFundEngineMPI(nlohmann::json const& inputParam);
 
-	void initEngine() override;
+	void init() override;
 	void multiply(const sg_vec<double> &, sg_vec<double> &, const double &, const std::string &) const = 0;
 
 protected:
