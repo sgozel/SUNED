@@ -3,8 +3,10 @@
 #include "hb_fund_engine_mpi.h"
 
 #include <iostream>
+#include <chrono>
 #include <mpi.h>
 
+#include "../../common/time.h"
 #include "../utils/utils.h"
 
 #ifdef SG_USE_BASIC_SYT
@@ -31,7 +33,9 @@ HBFundEngineMPI::HBFundEngineMPI(nlohmann::json const& inputParam)
 
 
 void HBFundEngineMPI::initEngine()
-{	
+{
+	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+	
 	dimension_ = multiplicity(alpha_);
 	
 	if (mpi_rank_==0) {
@@ -50,7 +54,7 @@ void HBFundEngineMPI::initEngine()
 	if (mpi_rank_==0) {
 		double factor = 1e6;
 		std::string F("MB");
-		if (Y_.size()>1e9) {
+		if (8*Y_.size()>=1e9) {
 			factor *= 1000;
 			F = std::string("GB");
 		}
@@ -61,6 +65,8 @@ void HBFundEngineMPI::initEngine()
 		std::cout << "SYTs Memory: " << sizeof(Y_[0])*((double)Y_.size()/factor) << F << std::endl;
 		#endif
 	}
+	
+	time(t0, std::string("initEngine"));
 }
 
 } // namespace sun

@@ -4,7 +4,9 @@
 
 #include <iostream>
 #include <iomanip>
+#include <chrono>
 
+#include "../../common/time.h"
 #include "../utils/utils.h"
 
 #ifdef SG_USE_BASIC_SYT
@@ -44,6 +46,8 @@ HBFundEngine::HBFundEngine(nlohmann::json const& inputParam)
 
 void HBFundEngine::initEngine()
 {	
+	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+	
 	dimension_ = multiplicity(alpha_);
 	std::cout << "dimension = " << dimension_ << std::endl;
 
@@ -55,7 +59,7 @@ void HBFundEngine::initEngine()
 	
 	double factor = 1e6;
 	std::string F("MB");
-	if (Y_.size()>1e9) {
+	if (8*Y_.size()>=1e9) {
 		factor *= 1000;
 		std::string F("GB");
 	}
@@ -65,6 +69,8 @@ void HBFundEngine::initEngine()
 	#else
 	std::cout << "SYTs Memory: " << sizeof(Y_[0])*((double)Y_.size()/factor) << F << std::endl;
 	#endif
+	
+	time(t0, std::string("initEngine"));
 }
 
 } // namespace sun
