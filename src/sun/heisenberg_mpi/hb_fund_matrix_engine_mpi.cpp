@@ -459,22 +459,6 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 			// MPI communication of coefficients
 			//======================================
 			
-			/*
-			MPI_Alltoallv(
-				send_coeffs.data(), 
-				sendrecvcounts.data(), 
-				srdispls.data(), 
-				mpi_type<coeff_t>(), 
-				recv_coeffs.data(), 
-				sendrecvcounts.data(), 
-				srdispls.data(), 
-				mpi_type<coeff_t>(), 
-				MPI_COMM_WORLD
-			);
-			*/
-			
-			// Allow large buffers by doing chunked communication
-			
 			alltoallv(
 				send_coeffs,
 				sendrecvcounts,
@@ -568,22 +552,6 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1_numa(const sg_vec<coeff_t>& w
 			//======================================
 			// MPI communication of coefficients
 			//======================================
-			
-			/*
-			MPI_Alltoallv(
-				send_coeffs.data(), 
-				sendrecvcounts.data(), 
-				srdispls.data(), 
-				mpi_type<coeff_t>(), 
-				recv_coeffs.data(), 
-				sendrecvcounts.data(), 
-				srdispls.data(), 
-				mpi_type<coeff_t>(), 
-				MPI_COMM_WORLD
-			);
-			*/
-			
-			// Allow large buffers by doing chunked communication
 			
 			alltoallv(
 				send_coeffs,

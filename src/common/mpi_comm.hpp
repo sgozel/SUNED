@@ -34,20 +34,15 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
     }
 
     const int64_t chunk_size = std::numeric_limits<int>::max();
-
-    // Number of chunks driven by the largest send or recv count
-    int64_t max_send = *std::max_element(sendcounts.begin(), sendcounts.end());
-    int64_t max_recv = *std::max_element(recvcounts.begin(), recvcounts.end());
-    int64_t max_count = std::max(max_send, max_recv);
     
     int64_t total_send = sdispls[world_size-1] + sendcounts[world_size-1];
 	int64_t total_recv = rdispls[world_size-1] + recvcounts[world_size-1];
     
-    int use_fast_path = ((total_send <= chunk_size) && (total_recv <= chunk_size)) ? 1 : 0;
-	int all_fast_path;
-	MPI_Allreduce(&use_fast_path, &all_fast_path, 1, MPI_INT, MPI_MIN, comm);
+    int one_chunk = ((total_send <= chunk_size) && (total_recv <= chunk_size)) ? 1 : 0;
+	int all_one_chunk;
+	MPI_Allreduce(&one_chunk, &all_one_chunk, 1, MPI_INT, MPI_MIN, comm);
     
-    if (all_fast_path) {
+    if (all_one_chunk) {
 		// single chunk - no reallocation needed - only cast counts/displs to int
 		std::vector<int> send_counts(world_size);
 		std::vector<int> recv_counts(world_size);
@@ -77,6 +72,10 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
 		
 		std::cerr << "PROBLEM: alltoallv : several chunks needed. Need a review" << std::endl;
 		MPI_Abort(MPI_COMM_WORLD, 1);
+		
+		int64_t max_send = *std::max_element(sendcounts.begin(), sendcounts.end());
+		int64_t max_recv = *std::max_element(recvcounts.begin(), recvcounts.end());
+		int64_t max_count = std::max(max_send, max_recv);
 		
 		int64_t n_chunks = (max_count + chunk_size - 1) / chunk_size;
 		MPI_Allreduce(MPI_IN_PLACE, &n_chunks, 1, MPI_INT64_T, MPI_MAX, comm);
