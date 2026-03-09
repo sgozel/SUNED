@@ -93,7 +93,7 @@ void HBFundMatrixEngine::build_matrix_lookups()
             continue;
         }
 		
-		//#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+		//#pragma omp parallel for schedule(guided)
 		#pragma omp parallel for schedule(static)
 		for (UINT64 i=0; i<dimension_; ++i) {
 			
@@ -236,7 +236,7 @@ void HBFundMatrixEngine::multiply_v1_openmp(const sg_vec<coeff_t>& w, sg_vec<coe
 		{
 			const unsigned int k = bond.ops[j].getk();
 		
-			#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+			#pragma omp parallel for schedule(guided)
 			for (UINT64 i=0; i<dimension_; ++i)
 			{	
 				if (P_[k][i]==-1) {

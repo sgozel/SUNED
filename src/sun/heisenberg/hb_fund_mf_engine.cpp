@@ -62,7 +62,7 @@ void HBFundMatrixFreeEngine::multiply_v1_openmp(const sg_vec<coeff_t>& w, sg_vec
 		const auto& bond = lattice_.bonds[b];
 		const double J = bond.couplingValue;
 		
-		#pragma omp parallel for schedule(guided) num_threads(num_threads_)
+		#pragma omp parallel for schedule(guided)
 		for (UINT64 i=0; i<dimension_; ++i)
 		{	
 			std::vector<SYT> ydev;

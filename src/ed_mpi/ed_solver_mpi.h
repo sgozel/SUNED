@@ -41,7 +41,6 @@ protected:
 protected:
 	UINT64 dimension_;
 	lanczosmpi::LanczosParams lanczosparams_;
-	unsigned int num_threads_;
 	
 	// MPI related attributes
 	int mpi_world_size_;

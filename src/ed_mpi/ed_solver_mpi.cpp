@@ -17,7 +17,6 @@ EDSolverMPI::EDSolverMPI(nlohmann::json const& inputParam)
 	MPI_Comm_size(MPI_COMM_WORLD, &mpi_world_size_);
 	MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank_);
 	
-    num_threads_ = inputParam.value("num_threads", 1);
     lanczosparams_ = lanczosmpi::LanczosParams(inputParam);
     
     mpi_dimensions_.resize(mpi_world_size_);

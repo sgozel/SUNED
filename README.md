@@ -56,10 +56,11 @@ The following options can be provided to the cmake command to customize the buil
 
 `USE_BASIC_SYT=ON` leads to a larger memory usage and a less efficient (slower) search across SYTs. It is also slower when applying transpositions on SYTs. It is thus not recommended for production runs.
 
-When using NUMA-aware allocation and initialization, the following should be the best choice:
+
+Before executing the code, set the OMP variables:
 ```
 export OMP_NUM_THREADS=...
-export OMP_PROC_BIND=spread
+export OMP_PROC_BIND=close
 export OMP_PLACES=cores
 ```
 
@@ -73,7 +74,6 @@ All input parameters must be provided in a ``.json`` file, such as the one provi
 | `Ns` | Number of sites |  |
 | `alpha` | Target sector (irrep) |  |
 | `latticefile` | Path to lattice file |  |
-| `num_threads` | Number of CPU threads (per node) | 1 |
 | `seed` | Seed for Lanczos initialization vector | 42 |
 | `max_iter` | Maximum number of Lanczos iterations | 1000 |
 | `tol_ritz` | Tolerance on Ritz value stabilization in Lanczos | 1e-12 |

@@ -14,7 +14,6 @@
 
 EDSolver::EDSolver(nlohmann::json const& inputParam)
 {
-	num_threads_ = inputParam.value("num_threads", 1);	
 	lanczosparams_ = lanczos::LanczosParams(inputParam);
 	eigvec_folder_ = inputParam.value("eigvec_folder_path", std::string(""));
 	if ((!eigvec_folder_.empty()) && (eigvec_folder_.back()!='/')) {
