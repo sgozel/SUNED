@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <omp.h>
 
+#include "../../common/time.h"
 #include "../utils/utils.h"
 
 
@@ -53,9 +54,15 @@ void HBFundMatrixEngine::initEngine()
 
 void HBFundMatrixEngine::build_matrix_lookups()
 {
+	std::chrono::time_point<std::chrono::high_resolution_clock> t_start = std::chrono::high_resolution_clock::now();
+	
 	{
 		double factor = 1e6;
 		std::string units = "MB";
+		if (8*dimension_ >= 1e9) {
+			factor *= 1000;
+			units = "GB";
+		}
 		double memMatrixLookups = sizeof(typePk)*(alpha_.n()-1)*static_cast<double>(dimension_)/factor;
 		double memLanczos = sizeof(double)*3*static_cast<double>(dimension_)/factor;
 		double memLanczosCopy = sizeof(double)*static_cast<double>(dimension_)/factor;
@@ -72,20 +79,17 @@ void HBFundMatrixEngine::build_matrix_lookups()
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
 	}
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t_start = std::chrono::high_resolution_clock::now();
-	
 	for (unsigned int k=0; k<alpha_.n()-1; ++k)
 	{	
 		std::chrono::time_point<std::chrono::high_resolution_clock> tk_start = std::chrono::high_resolution_clock::now();
+		
+		std::string transpo_string = std::string("(") + std::to_string(k) + ", " + std::to_string(k+1) + ")";
 		
 		P_[k].resize(dimension_);
 		
 		// Attempt to load P_[k] from file if it exists
         if ((dump_matrices_ == true) && (load_matrix(k))) {
-            std::chrono::time_point<std::chrono::high_resolution_clock> tk_end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double, std::milli> dtk = tk_end - tk_start;
-            std::cout << "Loaded from file (" << k << ", " << k+1 << ")"
-                      << std::setw(9) << std::right << dtk.count() << " ms" << std::endl;
+			time(tk_start, std::string("Loaded from file ")+transpo_string);
             continue;
         }
 		
@@ -123,22 +127,14 @@ void HBFundMatrixEngine::build_matrix_lookups()
 			}
 		}
 		
-		std::chrono::time_point<std::chrono::high_resolution_clock> tk_end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double, std::milli> dtk = tk_end - tk_start;
-		double t_k = dtk.count();
-		std::cout << "Time (" << k << ", " << k+1 << ")" 
-				  << std::setw(9) << std::right << t_k << " ms" << std::endl;
+		time(tk_start, std::string("Building ")+transpo_string);
 		
 		if (dump_matrices_ == true) {
 			dump_matrix(k);
 		}
 	}
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t_end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt = t_end - t_start;
-	double elapsed = dt.count();
-	std::cout << "Time build_matrix_lookups: " 
-			  << std::setw(9) << std::right << elapsed << " ms" << std::endl;
+	time(t_start, "build_matrix_lookups");
 	
 	free_basis();
 }
@@ -262,25 +258,10 @@ void HBFundMatrixEngine::multiply_v1_openmp(const sg_vec<coeff_t>& w, sg_vec<coe
 			u[i] += J*work[i];
 		}
 		
-		//std::chrono::time_point<std::chrono::high_resolution_clock> tb1 = std::chrono::high_resolution_clock::now();
-		//std::chrono::duration<double, std::milli> dt_bond = tb1 - tb0;
-		//double t_bond = dt_bond.count();
-		//std::cout << "Time bond " << std::right << std::setw(2) << b << "/" << lattice_.get_nbonds() << ": " 
-		//		  << "[" << std::right << std::setw(2) << bond.ops.size() << "] : "
-		//		  << std::setw(9) << std::right << t_bond << " ms" << std::endl;
 	}
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-    std::cout << std::fixed;
-    std::cout << std::setprecision(2);
-    std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+	time(t0, "multiply");
 }
-
-
-
-
 
 
 template <class coeff_t>
@@ -333,20 +314,10 @@ void HBFundMatrixEngine::multiply_v1_openmp_numa(const sg_vec<coeff_t>& w, sg_ve
 			u[i] += J * work_[i];
 		}
 		
-		//std::chrono::time_point<std::chrono::high_resolution_clock> tb1 = std::chrono::high_resolution_clock::now();
-		//std::chrono::duration<double, std::milli> dt_bond = tb1 - tb0;
-		//double t_bond = dt_bond.count();
-		//std::cout << "Time bond " << std::right << std::setw(2) << b << "/" << lattice_.get_nbonds() << ": " 
-		//		  << "[" << std::right << std::setw(2) << bond.ops.size() << "] : "
-		//		  << std::setw(9) << std::right << t_bond << " ms" << std::endl;
+		//time(tb0, std::string("Bond ")+std::to_string(b)+"/"+std::to_string(lattice_.get_nbonds())+": ");
 	}
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-    std::cout << std::fixed;
-    std::cout << std::setprecision(2);
-    std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+	time(t0, "multiply");
 }
 
 

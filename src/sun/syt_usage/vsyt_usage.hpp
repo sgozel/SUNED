@@ -5,8 +5,6 @@ template<class type_t>
 std::vector<vSYT<type_t>> get_SYT(const Irrep & alpha)
 {
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
-	
 	unsigned int n = alpha.n();
 	unsigned int nl = alpha.nrows();
 	std::vector<unsigned int> alphaT = alpha.transpose();
@@ -63,16 +61,6 @@ std::vector<vSYT<type_t>> get_SYT(const Irrep & alpha)
         Y[s] = y;
         s += 1;
     }
-    
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-	
-	std::ios_base::fmtflags coutflags(std::cout.flags());
-    std::cout << std::fixed;
-    std::cout << std::setprecision(2);
-    std::cout << "Time SYT get_vSYT (found " << Y.size() << " SYTs): " << std::setw(9) << std::right << t_total << " ms" << std::endl;
-    std::cout.flags(coutflags);
     
     return Y;
 }

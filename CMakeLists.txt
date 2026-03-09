@@ -68,6 +68,7 @@ include_directories(${CMAKE_BINARY_DIR}/src/version)
 #=======================================================================
 
 set(COMMON_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/common/time.cpp
     ${CMAKE_SOURCE_DIR}/src/tmatrix/tmatrix.cpp
     ${CMAKE_SOURCE_DIR}/src/sun/syt_usage/bsyt_usage.cpp
     ${CMAKE_SOURCE_DIR}/src/sun/permutation/permutation.cpp

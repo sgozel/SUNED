@@ -7,7 +7,6 @@
 #include <iomanip>
 #include <vector>
 #include <utility>
-#include <chrono>
 
 #include "../syt/vsyt.h"
 #include "../irrep/irrep.h"

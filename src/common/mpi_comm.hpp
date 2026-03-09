@@ -17,7 +17,7 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
                        const std::vector<int64_t>& recvcounts,
                        const std::vector<int64_t>& rdispls,
                        MPI_Comm comm = MPI_COMM_WORLD)
-{
+{	
     int world_size;
     MPI_Comm_size(comm, &world_size);
 
@@ -74,7 +74,7 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
                       send.begin() + sdispls[r] + offset + send_counts[r],
                       send_buf.begin() + send_displs[r]);
         }
-
+		
         MPI_Alltoallv(
             send_buf.data(),
             send_counts.data(),

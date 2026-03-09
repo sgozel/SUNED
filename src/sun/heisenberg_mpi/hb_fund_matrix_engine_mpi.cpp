@@ -4,10 +4,13 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <thread>
+#include <chrono>
 #include <omp.h>
 #include <mpi.h>
 
+#include "../../common/time.h"
 #include "../../common/mpi_utils.hpp"
 #include "../../common/mpi_comm.hpp"
 
@@ -70,10 +73,12 @@ void HBFundMatrixEngineMPI::initEngine()
 	HBFundEngineMPI::initEngine();
 	
 	work_.resize(mpi_dimension_);
+#ifdef SG_USE_NUMA
 	#pragma omp parallel for schedule(static)
 	for (UINT64 i = 0; i < mpi_dimension_; ++i) {
 		work_[i] = 0.0;
 	}
+#endif
 }
 
 
@@ -86,6 +91,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 	for (unsigned int k=0; k<alpha_.n()-1; ++k) {
 		
 		std::chrono::time_point<std::chrono::high_resolution_clock> tk_start = std::chrono::high_resolution_clock::now();
+		std::string transpo_string = std::string("(") + std::to_string(k) + ", " + std::to_string(k+1) + ")";
 		
 		std::fill(offdiag_indices.begin(), offdiag_indices.end(), 0);
 		
@@ -93,10 +99,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		
 		// Attempt to load P_[k] from file if it exists
 		if ((dump_matrices_==true) && (load_matrix(k))) {
-            std::chrono::time_point<std::chrono::high_resolution_clock> tk_end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double, std::milli> dtk = tk_end - tk_start;
-            std::cout << "Loaded from file (" << k << ", " << k+1 << ")"
-                      << std::setw(9) << std::right << dtk.count() << " ms" << std::endl;
+            time(tk_start, std::string("Load from file ")+transpo_string);
             continue;
         }
 		
@@ -249,26 +252,14 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 			MPI_COMM_WORLD
 		);
 		
-		std::chrono::time_point<std::chrono::high_resolution_clock> tk_end = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double, std::milli> dtk = tk_end - tk_start;
-		double t_k = dtk.count();
-		if (mpi_rank_ == 0) {
-			std::cout << "Time (" << k << ", " << k+1 << ")" 
-					  << std::setw(9) << std::right << t_k << " ms" << std::endl;
-		}
+		time(tk_start, std::string("Building ")+transpo_string);
 		
 		if (dump_matrices_ == true) {
 			dump_matrix(k);
 		}
 	}
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t_end = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt = t_end - t_start;
-	double elapsed = dt.count();
-	if (mpi_rank_ == 0) {
-		std::cout << "Time build_matrix_lookups: " 
-				  << std::setw(9) << std::right << elapsed << " ms" << std::endl;
-	}
+	time(t_start, "build_matrix_lookups");
 	
 	free_basis();
 }
@@ -418,8 +409,6 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 	
 	std::for_each(u.begin(), u.end(), [a](coeff_t& el) {el*=(-a);});
 
-	sg_vec<coeff_t> work(mpi_dimension_); // copy of local Lanczos vector
-
 	std::vector<int64_t> sendrecvcounts(mpi_world_size_, 0);
 	std::vector<int64_t> srdispls(mpi_world_size_, 0);
 
@@ -430,12 +419,18 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 	std::vector<coeff_t> send_coeffs(max_offdiag);
 	std::vector<coeff_t> recv_coeffs(max_offdiag);
 
+	unsigned int cpt_bond = 0;
+
 	for (const auto& bond : lattice_.bonds)
 	{
-		std::copy(w.begin(), w.end(), work.begin());
+		//std::chrono::time_point<std::chrono::high_resolution_clock> tbond_0 = std::chrono::high_resolution_clock::now();
+		
+		std::copy(w.begin(), w.end(), work_.begin());
 		
 		for (unsigned int j=0; j<bond.ops.size(); ++j)
 		{
+			std::chrono::time_point<std::chrono::high_resolution_clock> tbondj_0 = std::chrono::high_resolution_clock::now();
+			
 			const unsigned int k = bond.ops[j].getk();
 			
 			for (int r=0; r<mpi_world_size_; ++r) {
@@ -448,7 +443,7 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 			#pragma omp parallel for schedule(guided) num_threads(num_threads_)
 			for(UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
 				const double rho = 1.0/static_cast<double>(P_[k][mpi_local_index_base_[k][i]]);
-				send_coeffs[i] = work[mpi_local_index_base_[k][i]] * std::sqrt(1.0-rho*rho);
+				send_coeffs[i] = work_[mpi_local_index_base_[k][i]] * std::sqrt(1.0-rho*rho);
 			}
 			
 			//======================================
@@ -488,34 +483,28 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 			// All diagonal terms
 			#pragma omp parallel for schedule(guided) num_threads(num_threads_)
 			for (UINT64 i=0; i<mpi_dimension_; ++i) {
-				work[i] *= 1.0/static_cast<double>(P_[k][i]);
+				work_[i] *= 1.0/static_cast<double>(P_[k][i]);
 			}
 			
 			// All off-diagonal terms - no risk of data race at this point
 			#pragma omp parallel for schedule(guided) num_threads(num_threads_)
 			for (UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
-				work[mpi_local_index_friend_[k][i]] += recv_coeffs[i];
+				work_[mpi_local_index_friend_[k][i]] += recv_coeffs[i];
 			}
-		}
+		} // for j (operations in a bond)
 		
 		//===========================
 		// UPDATE OF LANCZOS VECTOR
 		//===========================
+		
 		const double J = bond.couplingValue;
 		for (UINT64 i=0; i<mpi_dimension_; ++i) {
-			u[i] += J * work[i];
+			u[i] += J * work_[i];
 		}
+		cpt_bond += 1;
 	}
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-    
-    if (mpi_rank_==0) {
-		std::cout << std::fixed;
-		std::cout << std::setprecision(2);
-		std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
-	}
+	time(t0, "multiply");
 }
 
 
@@ -626,15 +615,7 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1_numa(const sg_vec<coeff_t>& w
 		}
 	}
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-    
-    if (mpi_rank_==0) {
-		std::cout << std::fixed;
-		std::cout << std::setprecision(2);
-		std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
-	}
+	time(t0, "multiply");
 }
 
 

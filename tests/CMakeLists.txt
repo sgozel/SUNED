@@ -19,6 +19,7 @@ configure_file(testdata/TEST_DATA_ENERGY_SU3.json TEST_DATA_ENERGY_SU3.json)
 #=======================================================================
 
 set(COMMON_TEST_PROJECT_SOURCES
+	${CMAKE_SOURCE_DIR}/src/common/time.cpp
 	${CMAKE_SOURCE_DIR}/src/tmatrix/tmatrix.cpp
     ${CMAKE_SOURCE_DIR}/src/sun/utils/utils.cpp
 )

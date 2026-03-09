@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <string>
 #include <chrono>
 #include <random>
 #include <stdexcept>
@@ -11,6 +12,7 @@
 #include <map>
 #include <unordered_map>
 
+#include "../../common/time.h"
 #include "../utils/utils.h"
 
 
@@ -99,21 +101,10 @@ void HBFundMatrixFreeEngine::multiply_v1_openmp(const sg_vec<coeff_t>& w, sg_vec
 				++it;
 			}
 		}
-		
-		//std::chrono::time_point<std::chrono::high_resolution_clock> tb1 = std::chrono::high_resolution_clock::now();
-		//std::chrono::duration<double, std::milli> dt_bond = tb1 - tb0;
-		//double t_bond = dt_bond.count();
-		//std::cout << "Time bond " << std::right << std::setw(2) << b << "/" << lattice_.get_nbonds() << ": " 
-		//		  << "[" << std::right << std::setw(2) << bond.ops.size() << "] : "
-		//		  << std::setw(9) << std::right << t_bond << " ms" << std::endl;
+		//time(tb0, std::string("Bond ")+std::to_string(b)+"/"+std::to_string(lattice_.get_nbonds())+": ");
 	}
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-    std::cout << std::fixed;
-    std::cout << std::setprecision(2);
-    std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+	time(t0, "multiply");
 }
 
 
@@ -179,21 +170,10 @@ void HBFundMatrixFreeEngine::multiply_v1_openmp_numa(const sg_vec<coeff_t>& w, s
 				++it;
 			}
 		}
-		
-		//std::chrono::time_point<std::chrono::high_resolution_clock> tb1 = std::chrono::high_resolution_clock::now();
-		//std::chrono::duration<double, std::milli> dt_bond = tb1 - tb0;
-		//double t_bond = dt_bond.count();
-		//std::cout << "Time bond " << std::right << std::setw(2) << b << "/" << lattice_.get_nbonds() << ": " 
-		//		  << "[" << std::right << std::setw(2) << bond.ops.size() << "] : "
-		//		  << std::setw(9) << std::right << t_bond << " ms" << std::endl;
+		//time(tb0, std::string("Bond ")+std::to_string(b)+"/"+std::to_string(lattice_.get_nbonds())+": ");
 	}
-
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-    std::cout << std::fixed;
-    std::cout << std::setprecision(2);
-    std::cout << "multiply time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+	
+	time(t0, "multiply");
 }
 
 } // namespace sun

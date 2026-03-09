@@ -8,6 +8,7 @@
 #include <chrono>
 #include <stdexcept>
 
+#include "../common/time.h"
 #include "../lanczos/lanczos.h"
 
 
@@ -72,13 +73,7 @@ double EDSolver::eigenvalue(const std::string & method)
 	
 	std::vector<double> eigvals = tmat.eigenvalues();
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-	std::cout << "----------------------------" << std::endl;
-	std::cout << std::fixed;
-    std::cout << std::setprecision(2);
-    std::cout << "eigenvalue() time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+	time(t0, "eigenvalue()");
 
     return eigvals[0];
 }
@@ -136,17 +131,10 @@ std::pair<double, sg_vec<double>> EDSolver::eigenpair(const std::string & method
 	
 	std::vector<double> eigvals = tmat.eigenvalues();
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> t1 = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> dt_total = t1 - t0;
-    double t_total = dt_total.count();
-	std::cout << "----------------------------" << std::endl;
-	std::cout << std::fixed;
-    std::cout << std::setprecision(2);
-    std::cout << "eig time = " << std::setw(9) << std::right << t_total << " ms" << std::endl;
+	time(t0, "eigenpair()");
 
     return {eigvals[0], GS};
 }
-
 
 
 double EDSolver::check_eigvec(const std::pair<double, sg_vec<double>>& eigpair, const std::string & method) const
