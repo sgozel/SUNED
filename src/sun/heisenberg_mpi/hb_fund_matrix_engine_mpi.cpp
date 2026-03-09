@@ -99,7 +99,9 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		
 		// Attempt to load P_[k] from file if it exists
 		if ((dump_matrices_==true) && (load_matrix(k))) {
-            time(tk_start, std::string("Load from file ")+transpo_string);
+			if (mpi_rank_ == 0) {
+				time(tk_start, std::string("Load from file ")+transpo_string);
+			}
             continue;
         }
 		
@@ -273,7 +275,10 @@ void HBFundMatrixEngineMPI::free_basis()
 
 void HBFundMatrixEngineMPI::dump_matrix(const unsigned int k) const
 {
-    const std::string filename = matrix_dump_path_ + std::string("Pk_mpi_rank") + std::to_string(mpi_rank_) + "_" + std::to_string(k) + ".bin";
+    const std::string filename = matrix_dump_path_ 
+							   + std::string("Pk_mpi_ws") + std::to_string(mpi_world_size_) 
+							   + "_rank" + std::to_string(mpi_rank_) 
+							   + "_k" + std::to_string(k) + ".bin";
     std::ofstream out(filename, std::ios::binary);
     if (!out) {
         std::cerr << "Cannot open file : " << filename << std::endl;
@@ -309,7 +314,11 @@ void HBFundMatrixEngineMPI::dump_matrix(const unsigned int k) const
 
 bool HBFundMatrixEngineMPI::load_matrix(const unsigned int k)
 {
-    const std::string filename = matrix_dump_path_ + std::string("Pk_mpi_rank") + std::to_string(mpi_rank_) + "_" + std::to_string(k) + ".bin";
+    const std::string filename = matrix_dump_path_ 
+							   + std::string("Pk_mpi_ws") + std::to_string(mpi_world_size_) 
+							   + "_rank" + std::to_string(mpi_rank_) 
+							   + "_k" + std::to_string(k) + ".bin";
+	
     std::ifstream in(filename, std::ios::binary);
     if (!in) {
         return false;

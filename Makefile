@@ -1,5 +1,5 @@
 
-.PHONY: 
+.PHONY: \
 	all \
 	build build_numa \
 	build_mpi build_mpi_numa \
@@ -9,11 +9,7 @@
 	build_tests_all \
 	clean
 
-all: 
-	build \
-	build_numa \
-	build_mpi \
-	build_mpi_numa
+all: build build_numa build_mpi build_mpi_numa
 
 build:
 	cmake -S . -B build/release -DCMAKE_BUILD_TYPE=Release
