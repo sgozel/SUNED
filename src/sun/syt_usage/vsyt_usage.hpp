@@ -103,6 +103,9 @@ std::pair<int, int> get_column_k_k_plus_one(const vSYT<type_t> syt, const unsign
 			cols.second += 1;
 		}
 	}
+	if (rowkk == rowk) {
+		cols.second += 1;
+	}
 	return cols;
 }
 

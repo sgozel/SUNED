@@ -22,6 +22,7 @@ set(COMMON_TEST_PROJECT_SOURCES
 	${CMAKE_SOURCE_DIR}/src/common/time.cpp
 	${CMAKE_SOURCE_DIR}/src/tmatrix/tmatrix.cpp
     ${CMAKE_SOURCE_DIR}/src/sun/utils/utils.cpp
+    ${CMAKE_SOURCE_DIR}/src/sun/syt_usage/bsyt_usage.cpp
 )
 
 set(COMMON_TEST_SOURCES
@@ -30,6 +31,7 @@ set(COMMON_TEST_SOURCES
     test_irrep.cpp
     test_tmatrix.cpp
     test_bsyt.cpp
+    test_bsyt_usage.cpp
 )
 
 add_executable(tests_common ${COMMON_TEST_SOURCES} ${COMMON_TEST_PROJECT_SOURCES})

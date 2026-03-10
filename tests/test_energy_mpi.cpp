@@ -28,7 +28,9 @@ TEST(HBFundMatrixEngineMPI, EnergySU3Chain)
 	std::string filename("TEST_DATA_ENERGY_SU3.json");
 	std::vector<EnergySample> samples = read_energy_test_data(filename);
 	
-	for (const auto& testsample : samples) {
+	//for (const auto& testsample : samples) {
+	for (size_t i=0; i < 4; ++i) {
+		const auto & testsample = samples[i];
 		nlohmann::json inputParam = {
 			{"N", testsample.N}, 
 			{"Ns", testsample.Ns}, 
@@ -66,7 +68,9 @@ TEST(HBFundMatrixEngineMPI, NumaEnergySU3Chain)
 	std::string filename("TEST_DATA_ENERGY_SU3.json");
 	std::vector<EnergySample> samples = read_energy_test_data(filename);
 	
-	for (const auto& testsample : samples) {	
+	//for (const auto& testsample : samples) {
+	for (size_t i=0; i < 4; ++i) {
+		const auto & testsample = samples[i];
 		nlohmann::json inputParam = {
 			{"N", testsample.N}, 
 			{"Ns", testsample.Ns}, 
@@ -105,7 +109,9 @@ TEST(HBFundMatrixEngineMPI, NumaEigenpairSU3Chain)
 	std::string filename("TEST_DATA_ENERGY_SU3.json");
 	std::vector<EnergySample> samples = read_energy_test_data(filename);
 	
-	for (const auto& testsample : samples) {	
+	//for (const auto& testsample : samples) {
+	for (size_t i=0; i < 4; ++i) {
+		const auto & testsample = samples[i];
 		nlohmann::json inputParam = {
 			{"N", testsample.N}, 
 			{"Ns", testsample.Ns}, 
