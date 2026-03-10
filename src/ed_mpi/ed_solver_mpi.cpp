@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <numeric>
 #include <chrono>
+#include <omp.h>
 #include <mpi.h>
 
 #include "../common/time.h"
@@ -58,15 +59,17 @@ void EDSolverMPI::print_mpi_details() const
 	if (mpi_rank_ == 0) {
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
 		std::cout << "dimension = " << dimension_ << std::endl;
-		std::cout << "mpi_world_size_ = " << mpi_world_size_ << std::endl;
 		std::cout << "mpi_bare_dimension_ = " << mpi_bare_dimension_ << std::endl;
 		std::cout << "-----------------------------------------" << std::endl;
-		std::cout << "Dimensions of each rank: " << std::endl;
+		std::cout << "mpi_world_size_ = " << mpi_world_size_ << std::endl;
+		std::cout << "OMP threads per rank = " << omp_get_num_threads() << std::endl;
+		std::cout << "-----------------------------------------" << std::endl;
+		std::cout << "Dimensions of each MPI rank: " << std::endl;
 		for (int rank=0; rank<mpi_world_size_; ++rank) {
 			std::cout << "mpi_dimension[" << rank << "] = " << mpi_dimensions_[rank] << std::endl;
 		}
 		std::cout << "-----------------------------------------" << std::endl;
-		std::cout << "Indices per rank (start included; end excluded)" << std::endl;
+		std::cout << "Indices per MPI rank (start included; end excluded)" << std::endl;
 		for (int rank=0; rank<mpi_world_size_; ++rank) {
 			std::cout << "rank " << rank << ": " << mpi_start_index_[rank] << " ---> " << mpi_end_index_[rank] << std::endl;
 		}
