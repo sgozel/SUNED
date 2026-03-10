@@ -50,11 +50,12 @@ int main(int argc, char* argv[])
     double energy = engine.eigenvalue("multiply_v1_openmp");
     std::cout << "In main: from eigenvalue(), energy = " << energy << std::endl;
     
+    /*
     // Compute eigenpair
     std::pair<double, sg_vec<double>> eigpair = engine.eigenpair("multiply_v1_openmp");
     std::cout << "In main: from eigenpair(), energy = " << eigpair.first << std::endl;
     engine.check_eigvec(eigpair, "multiply_v1_openmp");
-	
+	*/
 	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	
 	std::cout << "leaving main" << std::endl;

@@ -64,13 +64,14 @@ int main(int argc, char* argv[])
 		std::cout << "In main: from eigenvalue(), energy = " << energy << std::endl;
 	}
 	
+	/*
 	// Compute eigenpair
 	std::pair<double, sg_vec<double>> eigpair = engine.eigenpair(mvm_method);
     if (mpi_rank == 0) {
 		std::cout << "In main: from eigenpair(), energy = " << eigpair.first << std::endl;
 	}
     engine.check_eigvec(eigpair, mvm_method);
-	
+	*/
 	MPI_Finalize();
 	
 	return 0;
