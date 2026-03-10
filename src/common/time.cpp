@@ -24,7 +24,7 @@ void time(
 	if (mpi_rank == 0) {
 #endif
     std::cout << std::fixed;
-    std::cout << std::setprecision(2);
+    std::cout << std::setprecision(3);
     std::cout << def << " time = " << std::setw(9) << std::right 
 			  << elapsed/1000 << " s" << std::endl;
     std::cout.flags(coutflags);
