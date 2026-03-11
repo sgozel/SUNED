@@ -19,11 +19,144 @@ TEST(SYTUsage, GetSYT)
     EXPECT_EQ(Y[2].value(), 260ULL);
     EXPECT_EQ(Y[3].value(), 272ULL);
     EXPECT_EQ(Y[4].value(), 320ULL);
-    
+}
+
+
+TEST(SYTUsage, OperatorLessThan)
+{
+    sun::Irrep alpha({3, 2});
+	std::vector<sun::tbSYT> Y = sun::get_SYT(alpha);
+	
     EXPECT_EQ(Y[0]<Y[1], true);
     EXPECT_EQ(Y[1]<Y[2], true);
     EXPECT_EQ(Y[2]<Y[3], true);
     EXPECT_EQ(Y[3]<Y[4], true);
+    
+    EXPECT_EQ(Y[3]<Y[3], false);
+    EXPECT_EQ(Y[4]<Y[3], false);
+}
+
+
+TEST(SYTUsage, OperatorGreaterThan)
+{
+    sun::Irrep alpha({3, 2});
+	std::vector<sun::tbSYT> Y = sun::get_SYT(alpha);
+	
+    EXPECT_EQ(Y[1]>Y[0], true);
+    EXPECT_EQ(Y[2]>Y[1], true);
+    EXPECT_EQ(Y[3]>Y[2], true);
+    EXPECT_EQ(Y[4]>Y[3], true);
+    
+    EXPECT_EQ(Y[3]>Y[0], true);
+    EXPECT_EQ(Y[2]>Y[4], false);
+    EXPECT_EQ(Y[1]>Y[1], false);
+}
+
+
+TEST(SYTUsage, OperatorLessOrEqualThan)
+{
+    sun::Irrep alpha({3, 2});
+	std::vector<sun::tbSYT> Y = sun::get_SYT(alpha);
+	
+    EXPECT_EQ(Y[0]<=Y[1], true);
+    EXPECT_EQ(Y[1]<=Y[2], true);
+    EXPECT_EQ(Y[2]<=Y[3], true);
+    EXPECT_EQ(Y[3]<=Y[4], true);
+    
+    EXPECT_EQ(Y[3]<=Y[0], false);
+    EXPECT_EQ(Y[2]<=Y[4], true);
+    EXPECT_EQ(Y[1]<=Y[1], true);
+}
+
+
+TEST(SYTUsage, OperatorGreaterOrEqualThan)
+{
+    sun::Irrep alpha({3, 2});
+	std::vector<sun::tbSYT> Y = sun::get_SYT(alpha);
+	
+    EXPECT_EQ(Y[1]>=Y[0], true);
+    EXPECT_EQ(Y[2]>=Y[1], true);
+    EXPECT_EQ(Y[3]>=Y[2], true);
+    EXPECT_EQ(Y[4]>=Y[3], true);
+    
+    EXPECT_EQ(Y[3]>=Y[0], true);
+    EXPECT_EQ(Y[2]>=Y[4], false);
+    EXPECT_EQ(Y[1]>=Y[1], true);
+}
+
+
+TEST(SYTUsage, OperatorEqual)
+{
+    sun::Irrep alpha({3, 2});
+	std::vector<sun::tbSYT> Y = sun::get_SYT(alpha);
+	
+    EXPECT_EQ(Y[0]==Y[0], true);
+    EXPECT_EQ(Y[0]==Y[1], false);
+    EXPECT_EQ(Y[1]==Y[1], true);
+    EXPECT_EQ(Y[3]==Y[4], false);
+}
+
+
+TEST(SYTUsage, GetSYTParts)
+{
+	sun::Irrep alpha({3, 2});
+	const std::vector<UINT64> expected({68ULL, 80ULL, 260ULL, 272ULL, 320ULL});
+	const UINT64 falpha = 5;
+	
+	std::vector<sun::tbSYT> Y;
+	
+	UINT64 dim = 1;
+	for (UINT64 from = 0; from < falpha; ++from) {
+		Y = sun::get_SYT(alpha, from, dim);
+		EXPECT_EQ(Y.size(), static_cast<size_t>(dim));
+		EXPECT_EQ(Y[0].value(), expected[from]);
+	}
+	
+	dim = 2;
+	for (UINT64 from = 0; from < falpha-1; ++from) {
+		
+		UINT64 dimeff = (from + dim > falpha ? dim-1 : dim);
+		
+		Y = sun::get_SYT(alpha, from, dimeff);
+		
+		EXPECT_EQ(Y.size(), static_cast<size_t>(dimeff));
+		EXPECT_EQ(Y[0].value(), expected[from]);
+		if (dimeff == 2) {
+			EXPECT_EQ(Y[1].value(), expected[from+1]);
+		}
+	}
+	
+	Y = sun::get_SYT(alpha, 1, 3);
+	EXPECT_EQ(Y.size(), 3);
+	EXPECT_EQ(Y[0].value(), expected[1]);
+	EXPECT_EQ(Y[1].value(), expected[2]);
+	EXPECT_EQ(Y[2].value(), expected[3]);
+	
+	Y = sun::get_SYT(alpha, 2, 3);
+	EXPECT_EQ(Y.size(), 3);
+	EXPECT_EQ(Y[0].value(), expected[2]);
+	EXPECT_EQ(Y[1].value(), expected[3]);
+	EXPECT_EQ(Y[2].value(), expected[4]);
+}
+
+
+TEST(SYTUsage, GetSYTPartsDimThrows)
+{
+	sun::Irrep alpha({3, 2});
+	
+	EXPECT_THROW(sun::get_SYT(alpha, 0, 6), std::runtime_error);
+	EXPECT_THROW(sun::get_SYT(alpha, 1, 5), std::runtime_error);
+	EXPECT_THROW(sun::get_SYT(alpha, 2, 4), std::runtime_error);
+	EXPECT_THROW(sun::get_SYT(alpha, 3, 3), std::runtime_error);
+	EXPECT_THROW(sun::get_SYT(alpha, 4, 2), std::runtime_error);
+}
+
+
+TEST(SYTUsage, GetSYTPartsFromThrows)
+{
+	sun::Irrep alpha({3, 2});
+	
+	EXPECT_THROW(sun::get_SYT(alpha, 5, 1), std::runtime_error);
 }
 
 

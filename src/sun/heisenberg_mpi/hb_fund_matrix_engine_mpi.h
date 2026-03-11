@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <string>
+#include <utility>
 
 #include "../../common/numa.h"
 
@@ -49,6 +50,8 @@ protected:
 	std::vector<std::vector<INT64>> mpi_offdiag_nodes_acc_;
 	std::vector<std::vector<UINT64>> mpi_local_index_base_;
 	std::vector<std::vector<UINT64>> mpi_local_index_friend_;
+
+	std::vector<std::pair<SYT, SYT>> Y_bounds_;
 
 private:
 	mutable sg_vec<double> work_;

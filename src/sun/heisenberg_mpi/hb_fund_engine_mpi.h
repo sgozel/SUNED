@@ -23,6 +23,7 @@ typedef int8_t SYTel;
 typedef Int8vSYT SYT;
 #else
 typedef tbSYT SYT;
+using SYT_value_t = SYT::value_type;
 #endif
 
 class HBFundEngineMPI : public HBEngine
