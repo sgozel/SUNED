@@ -18,8 +18,11 @@ class bSYT
 public:
 	
     bSYT() {v_=0x0ULL;};
+    explicit bSYT(const type_t v) {v_ = v;};
 
     type_t value() const {return v_;};
+    
+    using value_type = type_t;
     
     static constexpr unsigned int bitextent() {return extent;}
     
@@ -87,9 +90,17 @@ public:
     bool operator<(const bSYT<type_t, extent>& other) const {
         return (v_<other.v_ ? true : false);
     }
+    
+    bool operator<=(const bSYT<type_t, extent>& other) const {
+        return (v_<=other.v_ ? true : false);
+    }
 	
     bool operator>(const bSYT<type_t, extent>& other) const {
         return (v_>other.v_ ? true : false);
+    }
+    
+    bool operator>=(const bSYT<type_t, extent>& other) const {
+        return (v_>=other.v_ ? true : false);
     }
 	
     bool operator==(const bSYT<type_t, extent>& other) const {

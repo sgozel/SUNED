@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <utility>
+#include <limits>
 
 #include "../syt/bsyt.h"
 #include "../irrep/irrep.h"
@@ -12,7 +13,9 @@
 
 namespace sun {
 
-std::vector<tbSYT> get_SYT(const Irrep & alpha);
+//std::vector<tbSYT> get_SYT(const Irrep & alpha);
+
+std::vector<tbSYT> get_SYT(const Irrep & alpha, const UINT64 from = 0, UINT64 dim = std::numeric_limits<UINT64>::max());
 
 std::vector<int> get_column(const tbSYT syt, const Irrep& alpha);
 

@@ -42,6 +42,7 @@ void HBFundEngineMPI::init()
 		std::cout << "dimension = " << dimension_ << std::endl;
 	}
 	
+	// each MPI process generates the entire list of SYTs
 	#ifdef SG_USE_BASIC_SYT
 	Y_ = get_SYT<SYTel>(alpha_);
 	#else

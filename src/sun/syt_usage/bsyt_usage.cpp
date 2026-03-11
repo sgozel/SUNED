@@ -6,35 +6,55 @@
 #include <iomanip>
 #include <cmath>
 #include <utility>
+#include <stdexcept>
 
 #include "../utils/utils.h"
 
 namespace sun {
 
-std::vector<tbSYT> get_SYT(const Irrep & alpha) {
+std::vector<tbSYT> get_SYT(const Irrep & alpha, const UINT64 from, UINT64 dim) {
 	
 	unsigned int n = alpha.n();
 	unsigned int nl = alpha.nrows();
 	std::vector<unsigned int> alphaT = alpha.transpose();
 	UINT64 falpha = multiplicity(alpha);
 	
-	std::vector<tbSYT> Y(falpha);
+	if (from >= falpha) {
+		throw std::runtime_error("ERROR : get_SYT : from >= falpha");
+	}
+	
+	if (dim == std::numeric_limits<UINT64>::max()) {
+		dim = falpha;
+	}
+	
+	if (from + dim > falpha) {
+		throw std::runtime_error("ERROR : get_SYT : from + dim > falpha.");
+	}
+	
+	std::vector<tbSYT> Y(dim);
 	
 	// construct first SYT
-    tbSYT y0;
+    tbSYT yprev;
     unsigned int cptel = 0;
     for (unsigned int j=0; j<alpha[0]; ++j) {
         for (unsigned int row=0; row<alphaT[j]; ++row) {
-            y0.set(cptel, row);
+            yprev.set(cptel, row);
             cptel += 1;
         }
     }
 	
-	Y[0] = y0;
+	UINT64 cpt = 0;
+    
+    if (from == 0) {
+		Y[cpt] = yprev;
+		cpt += 1;
+	}
+	
     UINT64 s = 1;
     
-    while (s<falpha) {
-        tbSYT y(Y[s-1]);
+    while ((cpt<dim) && (s<falpha))
+    {
+        tbSYT y(yprev);
 
         std::vector<unsigned int> lbd(nl+1, 0);
         lbd[0] = 1;
@@ -66,12 +86,19 @@ std::vector<tbSYT> get_SYT(const Irrep & alpha) {
                 r += 1;
             }
         }
-        Y[s] = y;
+        
+        if ((s >= from) && (cpt < dim)) {
+			Y[cpt] = y;
+			cpt += 1;
+		}
+		
+		yprev = y;
         s += 1;
     }
-    
-    return Y;
+	
+	return Y;
 }
+
 
 std::vector<int> get_column(const tbSYT syt, const Irrep& alpha) {
 	

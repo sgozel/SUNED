@@ -10,6 +10,7 @@
 #include <omp.h>
 #include <mpi.h>
 
+#include "../utils/utils.h"
 #include "../../common/time.h"
 #include "../../common/mpi_utils.hpp"
 #include "../../common/mpi_comm.hpp"
@@ -54,6 +55,8 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 	mpi_local_index_base_.resize(alpha_.n()-1);
 	mpi_local_index_friend_.resize(alpha_.n()-1);
 	
+	Y_bounds_.resize(mpi_world_size_);
+	
 	if (mpi_rank_==0) {
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
 		std::cout << "N = " << N_ << std::endl;
@@ -70,7 +73,59 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 
 void HBFundMatrixEngineMPI::init()
 {
-	HBFundEngineMPI::init();
+	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+	
+	dimension_ = multiplicity(alpha_);
+	
+	if (mpi_rank_==0) {
+		std::cout << "dimension = " << dimension_ << std::endl;
+	}
+	
+	mpi_get_local_dimension();
+	print_mpi_details();
+	
+	// Each MPI process only generates its own SYTs
+	
+	const UINT64 from = mpi_rank_ * mpi_bare_dimension_;
+	
+	#ifdef SG_USE_BASIC_SYT
+	std::cerr << "Currently, BASIC_SYT is unsupported on MPI application." << std::endl;
+	MPI_Abort(MPI_COMM_WORLD, 1);
+	Y_ = get_SYT<SYTel>(alpha_, from, mpi_dimension_);
+	#else
+	Y_ = get_SYT(alpha_, from, mpi_dimension_);
+	#endif
+	
+	// Each process sends its Y_[0] to all processes
+	const SYT_value_t first_val = Y_[0].value();
+	std::vector<SYT_value_t> all_first(mpi_world_size_);
+	MPI_Allgather(
+		&first_val,              // send buffer
+		1,                       // send count
+		mpi_type<SYT_value_t>(), // send type
+		all_first.data(),        // recv buffer
+		1,                       // recv count per process
+		mpi_type<SYT_value_t>(), // recv type
+		MPI_COMM_WORLD
+	);
+
+	// Each process sends its Y_[Y_.size()-1] to all processes
+	const SYT_value_t last_val  = Y_[Y_.size()-1].value();
+	std::vector<SYT_value_t> all_last(mpi_world_size_);
+	MPI_Allgather(
+		&last_val,               // send buffer
+		1,                       // send count
+		mpi_type<SYT_value_t>(), // send type
+		all_last.data(),         // recv buffer
+		1,                       // recv count per process
+		mpi_type<SYT_value_t>(), // recv type
+		MPI_COMM_WORLD
+	);
+	
+	for (int rank = 0; rank < mpi_world_size_; ++rank) {
+		Y_bounds_[rank].first = SYT(all_first[rank]);
+		Y_bounds_[rank].second = SYT(all_last[rank]);
+	}
 	
 	work_.resize(mpi_dimension_);
 #ifdef SG_USE_NUMA
@@ -79,12 +134,51 @@ void HBFundMatrixEngineMPI::init()
 		work_[i] = 0.0;
 	}
 #endif
+	
+	if (mpi_rank_==0) {
+		double factor = 1e6;
+		std::string units("MB");
+		if (8*Y_.size()>=1e9) {
+			factor *= 1000;
+			units = std::string("GB");
+		}
+		
+		#ifdef SG_USE_BASIC_SYT
+		double memAllSYTs = alpha_.n() * sizeof(SYTel) * static_cast<double>(dimension_)/factor;
+		double memLocalSYTs = alpha_.n() * sizeof(SYTel) * static_cast<double>(mpi_dimension_)/factor;
+		#else
+		double memAllSYTs = sizeof(SYT_value_t) * static_cast<double>(dimension_)/factor;
+		double memLocalSYTs = sizeof(SYT_value_t) * static_cast<double>(mpi_dimension_)/factor;
+		#endif
+		double memMatrixLookups = sizeof(typePk) * (alpha_.n()-1) * static_cast<double>(mpi_dimension_)/factor;
+		double memLanczos = 3 * sizeof(double) * static_cast<double>(mpi_dimension_)/factor;
+		double memWorkArray = sizeof(double) * static_cast<double>(mpi_dimension_)/factor;
+		double memTotal = memMatrixLookups + memLanczos + memWorkArray;
+		
+		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
+		std::cout << ":::::::: TOTAL MEMORY REQUIREMENTS ::::::::" << std::endl;
+		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
+		std::cout << "Total SYTs Memory: " << memAllSYTs << units << std::endl;
+		std::cout << "Local SYTs Memory: " << memLocalSYTs << units << std::endl;
+		std::cout << "Matrix lookups:    " << memMatrixLookups << units << std::endl;
+		std::cout << "3 Lanczos vectors: " << memLanczos << units << std::endl;
+		std::cout << "work_ array:       " << memWorkArray << units << std::endl;
+		std::cout << "--------------" << std::endl;
+		std::cout << "Total: " << memTotal << units << std::endl;
+		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
+	}
+	
+	time(t0, std::string("init"));
 }
 
 
 void HBFundMatrixEngineMPI::build_matrix_lookups()
 {	
 	std::chrono::time_point<std::chrono::high_resolution_clock> t_start = std::chrono::high_resolution_clock::now();
+	
+	// one more security measure
+	static_assert(std::is_trivially_copyable<SYT>::value, 
+		"SYT must be trivially copyable for MPI byte transfer");
 	
 	std::vector<UINT64> offdiag_indices(mpi_dimension_);
 	
@@ -105,49 +199,187 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
             continue;
         }
 		
-		const UINT64 index_start = mpi_start_index_[mpi_rank_];
+		// For each remote rank, a list of local_i indices and yfriend SYTs
+		std::vector<std::vector<UINT64>> pending_i(mpi_world_size_);
+		std::vector<std::vector<SYT_value_t>> pending_syt(mpi_world_size_);
 		
 		#pragma omp parallel for schedule(guided)
-		for (UINT64 i=0; i<mpi_dimension_; ++i)
+		for (UINT64 i = 0; i < mpi_dimension_; ++i)
 		{	
-			const UINT64 global_i = index_start + i;
+			const int rowk = Y_[i].get(k);
+			const int rowkk = Y_[i].get(k+1);
 			
-			const int rowk = Y_[global_i].get(k);
-			const int rowkk = Y_[global_i].get(k+1);
-			
-			if (rowk==rowkk) {
+			if (rowk == rowkk) {
 				P_[k][i] = 1;
 			} else {
-				const std::pair<int, int> cy = get_column_k_k_plus_one(Y_[global_i], k);
-				if (cy.first==cy.second) {
+				const std::pair<int, int> cy = get_column_k_k_plus_one(Y_[i], k);
+				if (cy.first == cy.second) {
 					P_[k][i] = -1;
 				} else {		
-					SYT yfriend = Y_[global_i];
+					SYT yfriend = Y_[i];
 					yfriend.exchange(k, k+1);
 					
-					auto it = std::lower_bound(Y_.begin(), Y_.end(), yfriend);
-					const UINT64 index = it - Y_.begin();
+					// Extract the rank of the friend SYT
+					int rankfriend;
+					for (int rank = 0; rank < mpi_world_size_; ++rank) {
+						if ((yfriend>=Y_bounds_[rank].first) && (yfriend<=Y_bounds_[rank].second)) {
+							rankfriend = rank;
+							break;
+						}
+					}
 					
-					offdiag_indices[i] = index + 1; // add 1 to differentiate from value 0 used for diagonal elements
+					if (rankfriend == mpi_rank_) {
+						// The friend SYT belongs to this rank - we can search within the local collection of SYTs
+						
+						auto it = std::lower_bound(Y_.begin(), Y_.end(), yfriend);
+						UINT64 index = it - Y_.begin(); // local index
+						index += mpi_rank_ * mpi_bare_dimension_; // global index
+						
+						offdiag_indices[i] = index + 1; // add 1 to differentiate from value 0 used for diagonal elements
 					
-					// search to which process <index> belongs to
-					const unsigned int rankfriend = mpi_rank_from_index(index);
-					
-					#pragma omp atomic
-					mpi_offdiag_nodes_[k][rankfriend] += 1;
+						// search to which process <index> belongs to
+						const unsigned int rankfriend_v2 = mpi_rank_from_index(index);
+						
+						if (rankfriend_v2 != rankfriend) {
+							std::cerr << "PROBLEM: missmatch between two different methods of extracting the rank of the friend SYT." << std::endl;
+							MPI_Abort(MPI_COMM_WORLD, 1);
+						}
+						
+						#pragma omp atomic
+						mpi_offdiag_nodes_[k][rankfriend] += 1;
 
-					#pragma omp atomic
-					mpi_nb_offdiag_[k] += 1;
-					
-					// axial distance from k to k+1 in SYT Y_[i]
-					// count +1 for each step made downwards or to the left
-					// count -1 for each step made upwards or to the right
-					const typePk ax = cy.first - rowk - cy.second + rowkk;
-					
-					P_[k][i] = -ax;
+						#pragma omp atomic
+						mpi_nb_offdiag_[k] += 1;
+						
+						// axial distance from k to k+1 in SYT Y_[i]
+						// count +1 for each step made downwards or to the left
+						// count -1 for each step made upwards or to the right
+						const typePk ax = cy.first - rowk - cy.second + rowkk;
+						
+						P_[k][i] = -ax;
+						
+					} else {
+						// register a request for a index extraction on a friend rank
+						#pragma omp critical
+						{
+							pending_i[rankfriend].emplace_back(i);
+							pending_syt[rankfriend].emplace_back(yfriend.value());
+						}
+					}
 				}
 			}
-		} // end for i (Hilbert space)
+		} // end for i (local Hilbert space)
+		
+		// MPI EXCHANGE for remote friends
+		
+		// How many requests this rank is sending to each other rank
+		std::vector<int64_t> send_counts(mpi_world_size_);
+		for (int r = 0; r < mpi_world_size_; ++r) {
+			send_counts[r] = pending_i[r].size();
+		}
+
+		// How many requests this rank will receive from each other rank
+		std::vector<int64_t> recv_counts(mpi_world_size_);
+		MPI_Alltoall(
+			send_counts.data(),
+			1,
+			mpi_type<int64_t>(),
+			recv_counts.data(),
+			1,
+			mpi_type<int64_t>(),
+			MPI_COMM_WORLD
+		);
+		
+		// Compute send displacements
+		std::vector<int64_t> send_displs(mpi_world_size_, 0);
+		for (int r = 1; r < mpi_world_size_; ++r) {
+			send_displs[r] = send_displs[r-1] + send_counts[r-1];
+		}
+		const int64_t total_send = send_displs[mpi_world_size_-1] + send_counts[mpi_world_size_-1];
+		
+		// Compute recv displacements
+		std::vector<int64_t> recv_displs(mpi_world_size_, 0);
+		for (int r = 1; r < mpi_world_size_; ++r) {
+			recv_displs[r] = recv_displs[r-1] + recv_counts[r-1];
+		}
+		const int64_t total_recv = recv_displs[mpi_world_size_-1] + recv_counts[mpi_world_size_-1];
+		
+		// Pack data to be sent into a contiguous buffers
+		std::vector<SYT_value_t> send_buf_syt(total_send);
+		for (int r = 0; r < mpi_world_size_; ++r) {
+			std::copy(pending_syt[r].begin(),
+					  pending_syt[r].end(),
+					  send_buf_syt.begin() + send_displs[r]);
+		}
+		
+		// free memory of pending_syt
+		{ std::vector<std::vector<SYT_value_t>>().swap(pending_syt); }
+		
+		// receive buffer
+		std::vector<SYT_value_t> recv_buf_syt(total_recv);
+		
+		// Exchange incoming friend SYT
+		alltoallv(
+			send_buf_syt,
+			send_counts,
+			send_displs,
+			recv_buf_syt,
+			recv_counts,
+			recv_displs,
+			MPI_COMM_WORLD
+		);
+
+		// search received SYTs on this local collection
+		std::vector<UINT64> reply_buf(total_recv);
+
+		#pragma omp parallel for schedule(guided)
+		for (int64_t j = 0; j < total_recv; ++j) {
+			const SYT yfriend(recv_buf_syt[j]);
+			auto it = std::lower_bound(Y_.begin(), Y_.end(), yfriend);
+			const UINT64 local_index = it - Y_.begin();
+			const UINT64 global_index = mpi_rank_ * mpi_bare_dimension_ + local_index;
+			reply_buf[j] = global_index;
+		}
+		
+		// Send back the results of the requests to the original processes
+		std::vector<UINT64> result_buf(total_send); // answers coming back to this process
+		
+		alltoallv(
+			reply_buf,
+			recv_counts,
+			recv_displs,
+			result_buf,
+			send_counts,
+			send_displs,
+			MPI_COMM_WORLD
+		);
+		
+		// FILL IN PASS
+		
+		for (int r = 0; r < mpi_world_size_; ++r)
+		{
+			#pragma omp parallel for schedule(static)
+			for (int64_t j = 0; j < send_counts[r]; ++j)
+			{
+				const UINT64 local_i      = pending_i[r][j];
+				const UINT64 global_index = result_buf[send_displs[r] + j];
+
+				offdiag_indices[local_i] = global_index + 1; // +1 convention, same as local case
+
+				const SYT& yi = Y_[local_i];
+				const std::pair<int, int> cy = get_column_k_k_plus_one(yi, k);
+				const int rowk  = yi.get(k);
+				const int rowkk = yi.get(k+1);
+				const typePk ax = cy.first - rowk - cy.second + rowkk;
+				P_[k][local_i] = -ax;
+
+				const unsigned int rankfriend = mpi_rank_from_index(global_index);
+				#pragma omp atomic
+				mpi_offdiag_nodes_[k][rankfriend] += 1;
+				#pragma omp atomic
+				mpi_nb_offdiag_[k] += 1;
+			}
+		}
 		
 		// mpi_nb_offdiag_[k] = number of off-diagonal element for transposition (k, k+1) found by this process
 		// 
@@ -438,7 +670,7 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 		
 		for (unsigned int j=0; j<bond.ops.size(); ++j)
 		{
-			std::chrono::time_point<std::chrono::high_resolution_clock> tbondj_0 = std::chrono::high_resolution_clock::now();
+			//std::chrono::time_point<std::chrono::high_resolution_clock> tbondj_0 = std::chrono::high_resolution_clock::now();
 			
 			const unsigned int k = bond.ops[j].getk();
 			
