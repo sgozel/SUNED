@@ -35,7 +35,7 @@ HBFundEngine::HBFundEngine(nlohmann::json const& inputParam)
 	std::cout << "Target irrep: " << std::endl;
 	alpha_.print();
 	std::cout << std::endl;
-	std::cout << "num_threads = " << omp_get_num_threads() << std::endl;
+	std::cout << "num_threads = " << omp_get_max_threads() << std::endl;
 	lanczosparams_.print();
 	lattice_.print_sites();
 	lattice_.print_bonds();
