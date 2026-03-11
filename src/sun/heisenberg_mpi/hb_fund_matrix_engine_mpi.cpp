@@ -962,7 +962,7 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 {
 	// u <--- H*w - a*u
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+	auto t0 = std::chrono::high_resolution_clock::now();
 	
 	// u <--- -a*u
 	std::for_each(u.begin(), u.end(), [a](coeff_t& el) {el*=(-a);});
@@ -984,13 +984,36 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 
 	for (const auto& bond : lattice_.bonds)
 	{
-		//std::chrono::time_point<std::chrono::high_resolution_clock> tbond_0 = std::chrono::high_resolution_clock::now();
+		auto tbond_0 = std::chrono::high_resolution_clock::now();
+		
+		if (mpi_rank_ == 0) {
+			std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+			std::cout << "Start bond = " << cpt_bond << "/" << lattice_.get_nbonds() << std::endl;
+			std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+			std::cout << "start copying w to work_ ... " << std::endl;
+		}
 		
 		std::copy(w.begin(), w.end(), work_.begin());
 		
+		auto tbond_1 = std::chrono::high_resolution_clock::now();
+		time(tbond_0, tbond_1, std::string("copy w to work_"));
+		
+		if (mpi_rank_ == 0) {
+			std::cout << "Start applying all transpositions ..." << std::endl;
+		}
+		
 		for (unsigned int j=0; j<bond.ops.size(); ++j)
 		{	
+			auto tbondj_0 = std::chrono::high_resolution_clock::now();
+			
 			const unsigned int k = bond.ops[j].getk();
+			
+			if (mpi_rank_ == 0) {
+				std::cout << "--------------------" << std::endl;
+				std::cout << "Start transposition " << j << "/" << bond.ops.size() << ": (" << k << ", " << k+1 << ")" << std::endl;
+				std::cout << "--------------------" << std::endl;
+				std::cout << "Gather all coeffs to be sent ... " << std::endl;
+			}
 			
 			const std::vector<int64_t>& sendrecvcounts = mpi_offdiag_nodes_remote_only_[k];
 			const std::vector<int64_t>& srdispls = mpi_offdiag_nodes_remote_only_acc_[k];
@@ -1014,6 +1037,12 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 				
 				#pragma omp single nowait
 				{
+					auto tbondj_1 = std::chrono::high_resolution_clock::now();
+					time(tbondj_0, tbondj_1, std::string("done. gather all elems"));
+					if (mpi_rank_ == 0) {
+						std::cout << "Start alltoallv ..." << std::endl;
+					}
+					
 					//======================================
 					// MPI communication of coefficients
 					//======================================
@@ -1026,8 +1055,19 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 						srdispls,
 						MPI_COMM_WORLD
 					);
+					
+					auto tbondj_2 = std::chrono::high_resolution_clock::now();
+					time(tbondj_1, tbondj_2, std::string("done. total alltoallv"));
 				}
-			
+				auto tbondj_2p = std::chrono::high_resolution_clock::now();
+				
+				#pragma omp single nowait
+				{
+					if (mpi_rank_ == 0) {
+						std::cout << "Gather all elems of local pairs ..." << std::endl;
+					}
+				}
+				
 				// gather all elements from local pairs
 #ifdef SG_USE_NUMA
 				#pragma omp for schedule(static)
@@ -1042,9 +1082,24 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 			
 				#pragma omp barrier
 				
+				#pragma omp single nowait
+				{
+					auto tbondj_3 = std::chrono::high_resolution_clock::now();
+					time(tbondj_2p, tbondj_3, std::string("done. gather all elems of local pairs"));
+				}
+				
 				//======================================
 				// Perform update of <work> array
 				//======================================
+				
+				auto tbondj_3p = std::chrono::high_resolution_clock::now();
+				
+				#pragma omp single nowait
+				{
+					if (mpi_rank_ == 0) {
+						std::cout << "Start update of work_ ..." << std::endl;
+					}
+				}
 				
 				// All diagonal terms
 #ifdef SG_USE_NUMA
@@ -1075,10 +1130,19 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 				for (UINT64 i=0; i<mpi_nb_offdiag_remote_[k]; ++i) {
 					work_[mpi_local_index_friend_remote_[k][i]] += recv_coeffs[i];
 				}
-			
+				
+				#pragm omp single
+				{
+					auto tbondj_4 = std::chrono::high_resolution_clock::now();
+					time(tbondj_3p, tbondj_4, std::string("done. update of work_"));
+					time(tbondj_0, tbondj_4, std::string("Total transposition"));
+				}
 			} // omp parallel section
 			
 		} // for j (operations in a bond)
+		
+		auto tbond_2 = std::chrono::high_resolution_clock::now();
+		time(tbond_1, tbond_2, std::string("Applied all transpositions"));
 		
 		//===========================
 		// UPDATE OF LANCZOS VECTOR
@@ -1092,8 +1156,9 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 		
 		cpt_bond += 1;
 		
-		//std::chrono::time_point<std::chrono::high_resolution_clock> tbond_3 = std::chrono::high_resolution_clock::now();
-		//time(tbond_0, tbond_3, std::string("Total bond"));
+		auto tbond_3 = std::chrono::high_resolution_clock::now();
+		time(tbond_2, tbond_3, std::string("Lanczos update"));
+		time(tbond_0, tbond_3, std::string("Total bond"));
 		
 	} // for bond
 	

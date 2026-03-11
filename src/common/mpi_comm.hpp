@@ -4,9 +4,11 @@
 
 #include <iostream>
 #include <vector>
+#include <chrono>
 #include <mpi.h>
 
 #include "mpi_utils.hpp"
+#include "time.h"
 
 
 
@@ -65,6 +67,7 @@ void alltoallv_chunked(const coeff_t* send,
             recv_displs[r] = static_cast<int>(rdispls[r]);
         }
 		
+		std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
         MPI_Alltoallv(
             send, //send.data(),
             send_counts.data(),
@@ -76,6 +79,7 @@ void alltoallv_chunked(const coeff_t* send,
             mpi_type<coeff_t>(),
             comm
         );
+		time(t0, "MPI_Alltoallv");
         
 	} else {
 		// Several chunks are needed
@@ -130,6 +134,7 @@ void alltoallv_chunked(const coeff_t* send,
 						  send_buf.begin() + send_displs[r]);
 			}
 			
+			std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
 			MPI_Alltoallv(
 				send_buf.data(),
 				send_counts.data(),
@@ -141,6 +146,7 @@ void alltoallv_chunked(const coeff_t* send,
 				mpi_type<coeff_t>(),
 				comm
 			);
+			time(t0, "MPI_Alltoallv");
 
 			// Unpack recv staging buffer
 			for (int r = 0; r < world_size; ++r) {
