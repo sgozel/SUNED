@@ -8,6 +8,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <utility>
 #include <algorithm>
 #include <random>
 #include <cmath>
@@ -15,10 +16,9 @@
 #include <stdexcept>
 #include <omp.h>
 
+#include "../common/numa.h"
 #include "../tmatrix/tmatrix.h"
 #include "lanczosparams.h"
-#include "../common/numa.h"
-
 
 namespace lanczos {
 
@@ -42,8 +42,17 @@ bool convergence(Tmatrix & tmat, const LanczosParams & lp);
 void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosParams & lp, const bool isConverged);
 
 
-template<typename coeff_t, class Alloc>
-void dump_eigvec(const std::vector<coeff_t, Alloc>& eigvec, const unsigned int index, const LanczosParams & lp);
+template<typename E, typename coeff_t, class Alloc>
+void dump_eigpair(const E energy,
+				  const std::vector<coeff_t, Alloc>& eigvec,
+				  const unsigned int index, 
+				  const LanczosParams& lp);
+
+
+template<typename E, typename coeff_t, class Alloc>
+bool load_eigpair(std::pair<E, std::vector<coeff_t, Alloc>>& eigpair, 
+				  const unsigned int index, 
+				  const LanczosParams& lp);
 
 
 // y <--- y + a*x

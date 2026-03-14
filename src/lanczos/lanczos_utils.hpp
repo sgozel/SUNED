@@ -177,14 +177,20 @@ void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosPar
 }
 
 
-template<typename coeff_t, class Alloc>
-void dump_eigvec(const std::vector<coeff_t, Alloc>& eigvec, const unsigned int index, const LanczosParams & lp)
+template<typename E, typename coeff_t, class Alloc>
+void dump_eigpair(const E energy, 
+				  const std::vector<coeff_t, Alloc>& eigvec, 
+				  const unsigned int index, 
+				  const LanczosParams & lp)
 {
 #ifdef SG_USE_MPI
+	int mpi_world_size;
 	int mpi_rank;
+	MPI_Comm_size(MPI_COMM_WORLD, &mpi_world_size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
 	std::string filename = lp.eigvec_folder 
 						 + std::string("eigvec_") + std::to_string(index) 
+						 + "_ws" + std::to_string(mpi_world_size)
 						 + "_rank" + std::to_string(mpi_rank) 
 						 + "_seed" + std::to_string(lp.seed) 
 						 + ".bin";
@@ -202,7 +208,10 @@ void dump_eigvec(const std::vector<coeff_t, Alloc>& eigvec, const unsigned int i
 	
 	// Write dimension
 	const UINT64 dim = eigvec.size();
-	out.write(reinterpret_cast<const char*>(&dim), sizeof(dim));
+	out.write(reinterpret_cast<const char*>(&dim), sizeof(UINT64));
+	
+	// Write energy
+	out.write(reinterpret_cast<const char*>(&energy), sizeof(E));
 	
 	// Write eigenvector
 	out.write(reinterpret_cast<const char*>(eigvec.data()), dim * sizeof(coeff_t));
@@ -211,6 +220,68 @@ void dump_eigvec(const std::vector<coeff_t, Alloc>& eigvec, const unsigned int i
 	if (!out.good()) {
 		throw std::runtime_error("Error writing eigvec to file");
 	}
+}
+
+
+template<typename E, typename coeff_t, class Alloc>
+bool load_eigpair(std::pair<E, std::vector<coeff_t, Alloc>>& eigpair, 
+				  const unsigned int index, 
+				  const LanczosParams & lp)
+{
+#ifdef SG_USE_MPI
+	int mpi_world_size;
+	int mpi_rank;
+	MPI_Comm_size(MPI_COMM_WORLD, &mpi_world_size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+	std::string filename = lp.eigvec_folder 
+						 + std::string("eigvec_") + std::to_string(index) 
+						 + "_ws" + std::to_string(mpi_world_size)
+						 + "_rank" + std::to_string(mpi_rank) 
+						 + "_seed" + std::to_string(lp.seed) 
+						 + ".bin";
+#else
+	std::string filename = lp.eigvec_folder 
+					     + std::string("eigvec_") + std::to_string(index) 
+					     + "_seed" + std::to_string(lp.seed) 
+					     + ".bin";
+#endif
+	
+	std::ifstream in(filename, std::ios::binary);
+	if (!in) {
+		throw std::runtime_error("Cannot open eigvec file: " + filename);
+	}
+	
+	// Read eigvec dimension
+    UINT64 dim = 0;
+    in.read(reinterpret_cast<char*>(&dim), sizeof(UINT64));
+    if (!in) {
+        std::cerr << "Warning: failed to read dimension in file: " << filename << std::endl;
+        return false;
+    }
+    
+    // Read energy
+    in.read(reinterpret_cast<char*>(&eigpair.first), sizeof(E));
+    if (!in) {
+        std::cerr << "Warning: failed to read energy from file: " << filename << std::endl;
+        return false;
+    }
+    
+    // Read eigenvector
+    eigpair.second.resize(dim);
+    in.read(reinterpret_cast<char*>(eigpair.second.data()), dim * sizeof(coeff_t));
+    if (!in) {
+        std::cerr << "Warning: failed to read eigenvector from file: " << filename << std::endl;
+        return false;
+    }
+    
+    // Verify we are at end of file - no unexpected trailing data
+	in.peek();
+	if (!in.eof()) {
+		std::cerr << "Warning: unexpected trailing data in file: " << filename << std::endl;
+		return false;
+	}
+	
+	return true;
 }
 
 

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <utility>
 #include <algorithm>
 #include <random>
 #include <cmath>
@@ -40,6 +41,19 @@ bool convergence(Tmatrix & tmat, const LanczosParams & lp);
 
 
 void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosParams & lp, const bool isConverged);
+
+
+template<typename E, typename coeff_t, class Alloc>
+void dump_eigpair(const E energy,
+				  const std::vector<coeff_t, Alloc>& eigvec,
+				  const unsigned int index, 
+				  const LanczosParams& lp);
+
+
+template<typename E, typename coeff_t, class Alloc>
+bool load_eigpair(std::pair<E, std::vector<coeff_t, Alloc>>& eigpair, 
+				  const unsigned int index, 
+				  const LanczosParams& lp);
 
 
 // y <--- y + a*x

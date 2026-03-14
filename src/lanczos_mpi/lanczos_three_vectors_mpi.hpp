@@ -469,7 +469,8 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 	}
     
     if (lp.dump_eigvec == true) {
-		dump_eigvec(eigvec, 0, lp);
+		const double energy = tmat.eigenvalues()[0];
+		dump_eigpair(energy, eigvec, 0, lp);
 	}
     
     if ((lp.checkpointing) && (isConverged)) {
