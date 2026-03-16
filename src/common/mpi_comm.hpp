@@ -9,11 +9,19 @@
 #include "mpi_utils.hpp"
 
 
+
 template<class coeff_t>
-void alltoallv_chunked(const std::vector<coeff_t>& send,
+/*void alltoallv_chunked(const std::vector<coeff_t>& send,
 					   const std::vector<int64_t>& sendcounts,
 					   const std::vector<int64_t>& sdispls,
                        std::vector<coeff_t>& recv,
+                       const std::vector<int64_t>& recvcounts,
+                       const std::vector<int64_t>& rdispls,
+                       MPI_Comm comm = MPI_COMM_WORLD)*/
+void alltoallv_chunked(const coeff_t* send,
+                       const std::vector<int64_t>& sendcounts,
+                       const std::vector<int64_t>& sdispls,
+                       coeff_t* recv,
                        const std::vector<int64_t>& recvcounts,
                        const std::vector<int64_t>& rdispls,
                        MPI_Comm comm = MPI_COMM_WORLD)
@@ -21,6 +29,8 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
     int world_size;
     MPI_Comm_size(comm, &world_size);
 
+	/*
+	// NOT POSSIBLE ANYMORE, BECAUSE recv IS A POINTER
     // Verify recv buffer is large enough
     int64_t total_recvcounts = 0;
     for (int r = 0; r < world_size; ++r) {
@@ -31,7 +41,7 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
                   << recv.size() << ", required=" << total_recvcounts << ")"
                   << std::endl;
         MPI_Abort(MPI_COMM_WORLD, 1);
-    }
+    }*/
 
     const int64_t chunk_size = std::numeric_limits<int>::max();
     
@@ -56,11 +66,11 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
         }
 		
         MPI_Alltoallv(
-            send.data(),
+            send, //send.data(),
             send_counts.data(),
             send_displs.data(),
             mpi_type<coeff_t>(),
-            recv.data(),
+            recv, //recv.data(),
             recv_counts.data(),
             recv_displs.data(),
             mpi_type<coeff_t>(),
@@ -107,10 +117,16 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
 				total_send += send_counts[r];
 				total_recv += recv_counts[r];
 			}
-
+			
 			for (int r = 0; r < world_size; ++r) {
+				/*
+				// vector version
 				std::copy(send.begin() + sdispls[r] + offset,
 						  send.begin() + sdispls[r] + offset + send_counts[r],
+						  send_buf.begin() + send_displs[r]);*/
+				// pointer version
+				std::copy(send + sdispls[r] + offset,
+						  send + sdispls[r] + offset + send_counts[r],
 						  send_buf.begin() + send_displs[r]);
 			}
 			
@@ -128,19 +144,33 @@ void alltoallv_chunked(const std::vector<coeff_t>& send,
 
 			// Unpack recv staging buffer
 			for (int r = 0; r < world_size; ++r) {
+				/*
+				// vector version
 				std::copy(recv_buf.begin() + recv_displs[r],
 						  recv_buf.begin() + recv_displs[r] + recv_counts[r],
-						  recv.begin() + rdispls[r] + offset);
+						  recv.begin() + rdispls[r] + offset);*/
+				// Pointer version
+				std::copy(recv_buf.begin() + recv_displs[r],
+						  recv_buf.begin() + recv_displs[r] + recv_counts[r],
+						  recv + rdispls[r] + offset);
 			}
 		}
 	}
 }
 
+
 template<class coeff_t>
-void alltoallv(const std::vector<coeff_t>& send,
+void alltoallv(/*const std::vector<coeff_t>& send,
                const std::vector<int64_t>& sendcounts,
                const std::vector<int64_t>& sdispls,
                std::vector<coeff_t>& recv,
+               const std::vector<int64_t>& recvcounts,
+               const std::vector<int64_t>& rdispls,
+               MPI_Comm comm = MPI_COMM_WORLD)*/
+			   const coeff_t* send,
+               const std::vector<int64_t>& sendcounts,
+               const std::vector<int64_t>& sdispls,
+               coeff_t* recv,
                const std::vector<int64_t>& recvcounts,
                const std::vector<int64_t>& rdispls,
                MPI_Comm comm = MPI_COMM_WORLD)
@@ -149,11 +179,11 @@ void alltoallv(const std::vector<coeff_t>& send,
     static_assert(sizeof(MPI_Count) == sizeof(int64_t), "MPI_Count size mismatch");
 
     MPI_Alltoallv_c(
-        send.data(),
+        send,
         sendcounts.data(),
         sdispls.data(),
         mpi_type<coeff_t>(),
-        recv.data(),
+        recv,
         recvcounts.data(),
         rdispls.data(),
         mpi_type<coeff_t>(),
@@ -169,6 +199,28 @@ void alltoallv(const std::vector<coeff_t>& send,
 		rdispls,
 		comm);
 #endif
+}
+
+
+// thin wrapper - takes vectors, delegates to pointer version
+template<class coeff_t>
+void alltoallv(const std::vector<coeff_t>& send,
+               const std::vector<int64_t>& sendcounts,
+               const std::vector<int64_t>& sdispls,
+               std::vector<coeff_t>& recv,
+               const std::vector<int64_t>& recvcounts,
+               const std::vector<int64_t>& rdispls,
+               MPI_Comm comm = MPI_COMM_WORLD)
+{
+    alltoallv(
+		send.data(),
+		sendcounts,
+		sdispls,
+		recv.data(),
+		recvcounts,
+		rdispls,
+		comm
+	);
 }
 
 #endif

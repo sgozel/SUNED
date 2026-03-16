@@ -10,13 +10,13 @@
 "tol_residual": 1e-13,
 "convergence_check_frequency": 1,
 "dump_eigvec": true,
-"eigvec_folder_path": "C:/Users/Samuel/Desktop/scratch/",
-"logging": false,
-"logging_folder_path": "C:/Users/Samuel/Desktop/scratch/",
+"eigvec_folder_path": "/scratch/eigvecs/",
+"logging": true,
+"logging_folder_path": "/scratch/logs/",
 "logging_frequency": 1,
 "checkpointing": false,
-"checkpoint_folder_path": "C:/Users/Samuel/Desktop/scratch/",
-"checkpoint_freq": 5,
-"dump_matrices": false,
-"matrix_dump_folder_path": "C:/Users/Samuel/Desktop/scratch/"
+"checkpoint_folder_path": "/scratch/checkpoint/",
+"checkpoint_freq": 10,
+"dump_matrices": true,
+"matrix_dump_folder_path": "/scratch/lookups/"
 }

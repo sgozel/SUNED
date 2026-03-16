@@ -52,16 +52,12 @@ int main(int argc, char* argv[])
 	engine.init();
 	engine.build_matrix_lookups();
 
-#ifdef SG_USE_NUMA
-	const std::string mvm_method("multiply_mpi_matrix_v1_numa");
-#else
 	const std::string mvm_method("multiply_mpi_matrix_v1");
-#endif
 	
 	// Compute eigenvalue
 	double energy = engine.eigenvalue(mvm_method);
 	if (mpi_rank == 0) {
-		std::cout << "In main: from eigenvalue(), energy = " << energy << std::endl;
+		std::cout << "In main: from eigenvalue(" << mvm_method << "), energy = " << energy << std::endl;
 	}
 	
 	/*
@@ -72,6 +68,11 @@ int main(int argc, char* argv[])
 	}
     engine.check_eigvec(eigpair, mvm_method);
 	*/
+	
+	if (mpi_rank == 0) {
+		std::cout << "Leaving main" << std::endl;
+	}
+	
 	MPI_Finalize();
 	
 	return 0;

@@ -14,7 +14,8 @@
 
 namespace sun {
 
-typedef int64_t typePk; // can potentially use int32_t
+typedef int8_t typePk;
+typedef uint32_t typeIndex;
 
 class HBFundMatrixEngineMPI : public HBFundEngineMPI
 {
@@ -30,28 +31,36 @@ public:
     
 	template <class coeff_t>
     void multiply_mpi_matrix_v1(const sg_vec<coeff_t>&, sg_vec<coeff_t>&, const double) const;
-    
-    template <class coeff_t>
-    void multiply_mpi_matrix_v1_numa(const sg_vec<coeff_t>&, sg_vec<coeff_t>&, const double) const;
 
 private:
 	void free_basis();
 	void dump_matrix(const unsigned int k) const;
 	bool load_matrix(const unsigned int k);
+	void precise_memory_usage() const;
 
 protected:
 	bool dump_matrices_;
 	std::string matrix_dump_path_;
 	
+	std::vector<std::pair<SYT, SYT>> Y_bounds_;
+	
 	std::vector<std::vector<typePk>> P_;
 	
-	std::vector<UINT64> mpi_nb_offdiag_;
-	std::vector<std::vector<INT64>> mpi_offdiag_nodes_;
-	std::vector<std::vector<INT64>> mpi_offdiag_nodes_acc_;
-	std::vector<std::vector<UINT64>> mpi_local_index_base_;
-	std::vector<std::vector<UINT64>> mpi_local_index_friend_;
-
-	std::vector<std::pair<SYT, SYT>> Y_bounds_;
+	std::vector<UINT64> local_pairs_; // [k] count of local pairs in transposition (k, k+1)
+	std::vector<UINT64> remote_pairs_; // [k] count of remote pairs in transposition (k, k+1)
+	
+	std::vector<UINT64> mpi_nb_offdiag_; // [k] number of off-diag elements (local + remote)
+	std::vector<UINT64> mpi_nb_offdiag_local_; // [k] number of local off-diag elements
+	std::vector<UINT64> mpi_nb_offdiag_remote_; // [k] number of remote off-diag elements
+	
+	std::vector<std::vector<INT64>> mpi_offdiag_nodes_remote_only_; // [k][rank] off-diag counts going to each rank, omitting local pairs
+	std::vector<std::vector<INT64>> mpi_offdiag_nodes_remote_only_acc_; // [k][rank] accumulated off-diag counts going to each rank (displacements), omitting local pairs
+	
+	std::vector<std::vector<typeIndex>> mpi_local_index_base_local_;    // [k][i] local base index for local pairs
+	std::vector<std::vector<typeIndex>> mpi_local_index_friend_local_;  // [k][i] local friend index for local pairs (same rank)
+	
+	std::vector<std::vector<typeIndex>> mpi_local_index_base_remote_;    // [k][i] local base index for remote pairs
+	std::vector<std::vector<typeIndex>> mpi_local_index_friend_remote_;  // [k][i] local friend index for remote pairs (different rank)
 
 private:
 	mutable sg_vec<double> work_;

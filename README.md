@@ -42,6 +42,7 @@ You can then simply invoke the `Makefile` at the root of the directory:
 ```
 make
 ```
+This will build several executables ({MPI, non-MPI} $\times$ {NUMA-aware, non-NUMA-aware}).
 
 ## Options
 

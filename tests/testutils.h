@@ -3,12 +3,12 @@
 #ifndef TEST_UTILS_H
 #define TEST_UTILS_H
 
-#include <vector>
+#include <gtest/gtest.h>
 
 
-template<typename type_t>
-static void expect_equal_vec(const std::vector<type_t>& a,
-							 const std::vector<type_t>& b)
+template<typename V>
+static void expect_equal_vec(const V& a,
+							 const V& b)
 {
     ASSERT_EQ(a.size(), b.size());
     for (size_t i = 0; i < a.size(); ++i) {
@@ -17,9 +17,9 @@ static void expect_equal_vec(const std::vector<type_t>& a,
 }
 
 
-template<typename type_t>
-static void expect_near_vec(const std::vector<type_t>& a,
-                            const std::vector<type_t>& b,
+template<typename V>
+static void expect_near_vec(const V& a,
+                            const V& b,
                             double tol = 1e-12)
 {
     ASSERT_EQ(a.size(), b.size());

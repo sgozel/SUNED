@@ -57,6 +57,7 @@ void EDSolverMPI::mpi_get_local_dimension()
 void EDSolverMPI::print_mpi_details() const
 {
 	if (mpi_rank_ == 0) {
+		std::ios_base::fmtflags coutflags(std::cout.flags());
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
 		std::cout << "dimension = " << dimension_ << std::endl;
 		std::cout << "mpi_bare_dimension_ = " << mpi_bare_dimension_ << std::endl;
@@ -65,15 +66,21 @@ void EDSolverMPI::print_mpi_details() const
 		std::cout << "OMP threads per rank = " << omp_get_max_threads() << std::endl;
 		std::cout << "-----------------------------------------" << std::endl;
 		std::cout << "Dimensions of each MPI rank: " << std::endl;
-		for (int rank=0; rank<mpi_world_size_; ++rank) {
-			std::cout << "mpi_dimension[" << rank << "] = " << mpi_dimensions_[rank] << std::endl;
+		for (int rank = 0; rank < mpi_world_size_; ++rank) {
+			std::cout << "mpi_dimension[" 
+					  << std::setw(4) << std::right << rank 
+					  << "] = " << std::setw(10) << std::right << mpi_dimensions_[rank] << std::endl;
 		}
 		std::cout << "-----------------------------------------" << std::endl;
 		std::cout << "Indices per MPI rank (start included; end excluded)" << std::endl;
-		for (int rank=0; rank<mpi_world_size_; ++rank) {
-			std::cout << "rank " << rank << ": " << mpi_start_index_[rank] << " ---> " << mpi_end_index_[rank] << std::endl;
+		for (int rank = 0; rank < mpi_world_size_; ++rank) {
+			std::cout << "rank " << std::setw(4) << std::right << rank 
+					  << ": " << std::setw(10) << std::right << mpi_start_index_[rank] 
+					  << " ---> " << std::setw(10) << std::right << mpi_end_index_[rank]
+					  << std::endl;
 		}
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+		std::cout.flags(coutflags);
 	}
 }
 
@@ -234,4 +241,24 @@ double EDSolverMPI::check_eigvec(const std::pair<double, sg_vec<double>>& eigpai
 		std::cout.flags(coutflags);
 	}
 	return distance;
+}
+
+
+std::pair<double, sg_vec<double>> EDSolverMPI::load_eigpair(const unsigned int index) const
+{
+	auto t_start = std::chrono::high_resolution_clock::now();
+	
+	std::pair<double, sg_vec<double>> eigpair;
+	
+	if (lanczosmpi::load_eigpair(eigpair, index, lanczosparams_)) {
+		if (mpi_rank_ == 0) {
+			time(t_start, std::string("Loaded eigenpair from file"));
+		}
+    } else {
+		if (mpi_rank_ == 0) {
+			std::cerr << "Failed to load eigvec" << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+	}
+    return eigpair;
 }

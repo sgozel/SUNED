@@ -29,7 +29,9 @@ public:
 	std::pair<double, sg_vec<double>> eigenpair(const std::string &);
 	
 	double check_eigvec(const std::pair<double, sg_vec<double>>&, const std::string & method) const;
-
+	
+	std::pair<double, sg_vec<double>> load_eigpair(const unsigned int index) const;
+	
 protected:
 	UINT64 dimension_;
 	lanczos::LanczosParams lanczosparams_;

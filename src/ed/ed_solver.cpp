@@ -171,3 +171,18 @@ double EDSolver::check_eigvec(const std::pair<double, sg_vec<double>>& eigpair, 
 	
 	return distance;
 }
+
+
+std::pair<double, sg_vec<double>> EDSolver::load_eigpair(const unsigned int index) const
+{
+	auto t_start = std::chrono::high_resolution_clock::now();
+	
+	std::pair<double, sg_vec<double>> eigpair;
+	
+	if (lanczos::load_eigpair(eigpair, index, lanczosparams_)) {
+		time(t_start, std::string("Loaded eigenpair from file"));
+    } else {
+		throw std::runtime_error("Failed to load eigvec");
+	}
+    return eigpair;
+}

@@ -225,7 +225,8 @@ Tmatrix lanczos_two_vectors_eigvec(const type_mult & multiply,
 	}
     
     if (lp.dump_eigvec == true) {
-		dump_eigvec(eigvec, 0, lp);
+		const double energy = tmat.eigenvalues()[0];
+		dump_eigpair(energy, eigvec, 0, lp);
 	}
     
     return tmat;

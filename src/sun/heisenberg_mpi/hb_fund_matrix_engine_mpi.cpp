@@ -40,22 +40,48 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 		}
 	}
 	
-	P_.resize(alpha_.n()-1);
-	mpi_offdiag_nodes_.resize(alpha_.n()-1);
-	mpi_offdiag_nodes_acc_.resize(alpha_.n()-1);
-	for (unsigned int k=0; k<alpha_.n()-1; ++k) {
-		mpi_offdiag_nodes_[k].resize(mpi_world_size_);
-		std::fill(mpi_offdiag_nodes_[k].begin(), mpi_offdiag_nodes_[k].end(), 0);
-		mpi_offdiag_nodes_acc_[k].resize(mpi_world_size_);
-		std::fill(mpi_offdiag_nodes_acc_[k].begin(), mpi_offdiag_nodes_acc_[k].end(), 0);
+	{
+		int max_ax = alpha_.nrows() + alpha_.ncols() - 1;
+		if ((-max_ax < std::numeric_limits<typePk>::min()) || (max_ax > std::numeric_limits<typePk>::max())) {
+			std::cerr << "PROBLEM : irrep has a large maximal axial distance, update typePk to support it." << std::endl;
+			std::cerr << "sizeof(typePk) = " << sizeof(typePk) << std::endl;
+			std::cerr << "max axial distance = " << max_ax << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
 	}
-	mpi_nb_offdiag_.resize(alpha_.n()-1);
-	std::fill(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end(), 0);
-	
-	mpi_local_index_base_.resize(alpha_.n()-1);
-	mpi_local_index_friend_.resize(alpha_.n()-1);
 	
 	Y_bounds_.resize(mpi_world_size_);
+	
+	unsigned int n_transpo = alpha_.n() - 1;
+	
+	P_.resize(n_transpo);
+	
+	local_pairs_.resize(n_transpo);
+	remote_pairs_.resize(n_transpo);
+	
+	mpi_offdiag_nodes_remote_only_.resize(n_transpo);
+	mpi_offdiag_nodes_remote_only_acc_.resize(n_transpo);
+	
+	for (unsigned int k=0; k<n_transpo; ++k) {
+		mpi_offdiag_nodes_remote_only_[k].resize(mpi_world_size_);
+		mpi_offdiag_nodes_remote_only_acc_[k].resize(mpi_world_size_);
+		std::fill(mpi_offdiag_nodes_remote_only_[k].begin(), mpi_offdiag_nodes_remote_only_[k].end(), 0);
+		std::fill(mpi_offdiag_nodes_remote_only_acc_[k].begin(), mpi_offdiag_nodes_remote_only_acc_[k].end(), 0);
+	}
+	
+	mpi_nb_offdiag_.resize(n_transpo);
+	mpi_nb_offdiag_local_.resize(n_transpo);
+	mpi_nb_offdiag_remote_.resize(n_transpo);
+	
+	std::fill(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end(), 0);
+	std::fill(mpi_nb_offdiag_local_.begin(), mpi_nb_offdiag_local_.end(), 0);
+	std::fill(mpi_nb_offdiag_remote_.begin(), mpi_nb_offdiag_remote_.end(), 0);
+	
+	mpi_local_index_base_local_.resize(n_transpo);
+	mpi_local_index_friend_local_.resize(n_transpo);
+	
+	mpi_local_index_base_remote_.resize(n_transpo);
+	mpi_local_index_friend_remote_.resize(n_transpo);
 	
 	if (mpi_rank_==0) {
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
@@ -84,7 +110,7 @@ void HBFundMatrixEngineMPI::init()
 	mpi_get_local_dimension();
 	print_mpi_details();
 	
-	// Each MPI process only generates its own SYTs
+	// Each MPI process generates its own SYTs
 	
 	const UINT64 from = mpi_rank_ * mpi_bare_dimension_;
 	
@@ -135,10 +161,23 @@ void HBFundMatrixEngineMPI::init()
 	}
 #endif
 	
-	if (mpi_rank_==0) {
+	if (mpi_bare_dimension_ > std::numeric_limits<typeIndex>::max()) {
+		std::cerr << "mpi_bare_dimension_ = " << mpi_bare_dimension_ << std::endl;
+		std::cerr << "std::numeric_limits<typeIndex>::max() = " << std::numeric_limits<typeIndex>::max() << std::endl;
+		std::cerr << "typeIndex incapable of storing mpi_bare_dimension_. Change typeIndex to a larger type." << std::endl;
+		MPI_Abort(MPI_COMM_WORLD, 1);
+	}
+	
+	time(t0, std::string("init"));
+}
+
+
+void HBFundMatrixEngineMPI::precise_memory_usage() const
+{
+	if (mpi_rank_ == 0) {
 		double factor = 1e6;
 		std::string units("MB");
-		if (8*Y_.size()>=1e9) {
+		if (8*Y_.size() >= 1e9) {
 			factor *= 1000;
 			units = std::string("GB");
 		}
@@ -150,26 +189,71 @@ void HBFundMatrixEngineMPI::init()
 		double memAllSYTs = sizeof(SYT_value_t) * static_cast<double>(dimension_)/factor;
 		double memLocalSYTs = sizeof(SYT_value_t) * static_cast<double>(mpi_dimension_)/factor;
 		#endif
-		double memMatrixLookups = sizeof(typePk) * (alpha_.n()-1) * static_cast<double>(mpi_dimension_)/factor;
+		
 		double memLanczos = 3 * sizeof(double) * static_cast<double>(mpi_dimension_)/factor;
 		double memWorkArray = sizeof(double) * static_cast<double>(mpi_dimension_)/factor;
-		double memTotal = memMatrixLookups + memLanczos + memWorkArray;
 		
+		const unsigned int n_transpo = alpha_.n() - 1;
+		
+		double memMatrixLookups = sizeof(typePk) * n_transpo * static_cast<double>(mpi_dimension_)/factor;
+		
+		for (unsigned int k = 0; k < n_transpo; ++k)
+		{
+			double temp = 0;
+			
+			// mpi_local_index_base_local_[k] & mpi_local_index_friend_local_[k]
+			temp += (2 * static_cast<double>(mpi_nb_offdiag_local_[k])/factor * sizeof(typeIndex));
+			
+			// mpi_local_index_base_remote_[k] & mpi_local_index_friend_remote_[k]
+			temp += (2 * static_cast<double>(mpi_nb_offdiag_remote_[k])/factor * sizeof(typeIndex));
+			
+			memMatrixLookups += temp;
+		}
+		
+		const UINT64 max_offdiag_remote = *std::max_element(mpi_nb_offdiag_remote_.begin(), mpi_nb_offdiag_remote_.end());
+		const UINT64 max_offdiag = *std::max_element(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end());
+		
+		double memBufferArrays = sizeof(double) * (static_cast<double>(max_offdiag)/factor + static_cast<double>(max_offdiag_remote)/factor);
+		
+		double memTotal = memLanczos + memWorkArray + memMatrixLookups + memBufferArrays;
+		
+		if ((factor == 1e6) && (memTotal >= 1000))  {
+			factor *= 1000;
+			units = std::string("GB");
+			
+			memAllSYTs /= 1000;
+			memLocalSYTs /= 1000;
+			memLanczos /= 1000;
+			memWorkArray /= 1000;
+			memMatrixLookups /= 1000;
+			memBufferArrays /= 1000;
+			memTotal /= 1000;
+		}
+		
+		std::ios_base::fmtflags coutflags(std::cout.flags());
+		std::cout << std::fixed;
+		std::cout << std::setprecision(3);
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
 		std::cout << ":::::::: TOTAL MEMORY REQUIREMENTS ::::::::" << std::endl;
+		std::cout << "::::::::     PRECISE ESTIMATE      ::::::::" << std::endl;
+		std::cout << "::::::::          PER RANK         ::::::::" << std::endl;
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
-		std::cout << "Total SYTs Memory: " << memAllSYTs << units << std::endl;
-		std::cout << "Local SYTs Memory: " << memLocalSYTs << units << std::endl;
-		std::cout << "Matrix lookups:    " << memMatrixLookups << units << std::endl;
-		std::cout << "3 Lanczos vectors: " << memLanczos << units << std::endl;
-		std::cout << "work_ array:       " << memWorkArray << units << std::endl;
+		std::cout << "mpi_world_size_     : " << mpi_world_size_ << std::endl;
+		std::cout << "---------------------------" << std::endl;
+		std::cout << "Total SYTs Memory   : " << memAllSYTs << units << std::endl;
+		std::cout << "Local SYTs Memory   : " << memLocalSYTs << units << std::endl;
+		std::cout << "---------------------------" << std::endl;
+		std::cout << "Matrix lookups      : " << memMatrixLookups << units << std::endl;
+		std::cout << "3 Lanczos vectors   : " << memLanczos << units << std::endl;
+		std::cout << "work_ array         : " << memWorkArray << units << std::endl;
+		std::cout << "buffers             : " << memBufferArrays << units << std::endl;
 		std::cout << "--------------" << std::endl;
-		std::cout << "Total: " << memTotal << units << std::endl;
+		std::cout << "Total (per rank)    : " << memTotal << units << std::endl;
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::::" << std::endl;
+		std::cout.flags(coutflags);
 	}
-	
-	time(t0, std::string("init"));
 }
+
 
 
 void HBFundMatrixEngineMPI::build_matrix_lookups()
@@ -203,6 +287,9 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		std::vector<std::vector<UINT64>> pending_i(mpi_world_size_);
 		std::vector<std::vector<SYT_value_t>> pending_syt(mpi_world_size_);
 		
+		UINT64 local_pairs = 0;
+		UINT64 remote_pairs = 0;
+		
 		#pragma omp parallel for schedule(guided)
 		for (UINT64 i = 0; i < mpi_dimension_; ++i)
 		{	
@@ -220,17 +307,28 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 					yfriend.exchange(k, k+1);
 					
 					// Extract the rank of the friend SYT
-					int rankfriend;
+					int rankfriend = -1;
 					for (int rank = 0; rank < mpi_world_size_; ++rank) {
 						if ((yfriend>=Y_bounds_[rank].first) && (yfriend<=Y_bounds_[rank].second)) {
 							rankfriend = rank;
 							break;
 						}
 					}
+					if (rankfriend == -1) {
+						std::cerr << "PROBLEM Y : the rank of the friend SYT could not get extracted from Y_bounds_" << std::endl;
+						MPI_Abort(MPI_COMM_WORLD, 1);
+					}
 					
 					if (rankfriend == mpi_rank_) {
 						// The friend SYT belongs to this rank - we can search within the local collection of SYTs
 						
+						// increment the counter of local pairs
+						#pragma omp atomic
+						local_pairs += 1;
+						#pragma omp atomic
+						mpi_nb_offdiag_local_[k] += 1;
+						
+						// search index of element with binary search
 						auto it = std::lower_bound(Y_.begin(), Y_.end(), yfriend);
 						UINT64 index = it - Y_.begin(); // local index
 						index += mpi_rank_ * mpi_bare_dimension_; // global index
@@ -238,18 +336,12 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 						offdiag_indices[i] = index + 1; // add 1 to differentiate from value 0 used for diagonal elements
 					
 						// search to which process <index> belongs to
-						const unsigned int rankfriend_v2 = mpi_rank_from_index(index);
+						const int rankfriend_v2 = mpi_rank_from_index(index);
 						
 						if (rankfriend_v2 != rankfriend) {
 							std::cerr << "PROBLEM: missmatch between two different methods of extracting the rank of the friend SYT." << std::endl;
 							MPI_Abort(MPI_COMM_WORLD, 1);
 						}
-						
-						#pragma omp atomic
-						mpi_offdiag_nodes_[k][rankfriend] += 1;
-
-						#pragma omp atomic
-						mpi_nb_offdiag_[k] += 1;
 						
 						// axial distance from k to k+1 in SYT Y_[i]
 						// count +1 for each step made downwards or to the left
@@ -259,9 +351,14 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 						P_[k][i] = -ax;
 						
 					} else {
-						// register a request for a index extraction on a friend rank
+						// register a request for an index extraction on a friend rank
 						#pragma omp critical
 						{
+							// increment the counters of remote pairs
+							remote_pairs += 1;
+							mpi_nb_offdiag_remote_[k] += 1;
+							mpi_offdiag_nodes_remote_only_[k][rankfriend] += 1;
+							// register the request
 							pending_i[rankfriend].emplace_back(i);
 							pending_syt[rankfriend].emplace_back(yfriend.value());
 						}
@@ -270,7 +367,31 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 			}
 		} // end for i (local Hilbert space)
 		
+		// we have double-counted the local pairs, as we have counted both elements of each local pair
+		if (local_pairs % 2 == 1) {
+			std::cerr << "Problem : local_pairs = " << local_pairs << ", but it should be even." << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+		local_pairs /= 2;
+		
+		local_pairs_[k] = local_pairs;
+		remote_pairs_[k] = remote_pairs;
+		
+		if (mpi_nb_offdiag_local_[k] != 2*local_pairs_[k]) {
+			std::cerr << "PROBLEM G-0 - local_pairs" << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+		if (mpi_nb_offdiag_remote_[k] != remote_pairs_[k]) {
+			std::cerr << "PROBLEM G-1 - remote_pairs" << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+		
 		// MPI EXCHANGE for remote friends
+		
+		if ((pending_i[mpi_rank_].size() > 0) || (pending_syt[mpi_rank_].size() > 0)) {
+			std::cerr << "PROBLEM : pending_i[mpi_rank_].size() > 0 or pending_syt[mpi_rank_].size() > 0, but this rank should not communicate pending requests to itself" << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
 		
 		// How many requests this rank is sending to each other rank
 		std::vector<int64_t> send_counts(mpi_world_size_);
@@ -304,7 +425,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		}
 		const int64_t total_recv = recv_displs[mpi_world_size_-1] + recv_counts[mpi_world_size_-1];
 		
-		// Pack data to be sent into a contiguous buffers
+		// Pack data to be sent into a contiguous buffer
 		std::vector<SYT_value_t> send_buf_syt(total_send);
 		for (int r = 0; r < mpi_world_size_; ++r) {
 			std::copy(pending_syt[r].begin(),
@@ -329,7 +450,8 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 			MPI_COMM_WORLD
 		);
 
-		// search received SYTs on this local collection
+		// search indices of received SYTs on this local collection Y_
+		// and assemble the associated global indices for the MPI reply
 		std::vector<UINT64> reply_buf(total_recv);
 
 		#pragma omp parallel for schedule(guided)
@@ -354,14 +476,20 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 			MPI_COMM_WORLD
 		);
 		
+		// Now <result_buf> contains the requested indices of the image 
+		// (friend) SYTs which belong to friend ranks of local base SYTs
+		
 		// FILL IN PASS
+		
+		// we can now fill the missing information for the matrix lookups,
+		// namely the data associated to the remote friend SYTs
 		
 		for (int r = 0; r < mpi_world_size_; ++r)
 		{
 			#pragma omp parallel for schedule(static)
 			for (int64_t j = 0; j < send_counts[r]; ++j)
 			{
-				const UINT64 local_i      = pending_i[r][j];
+				const UINT64 local_i = pending_i[r][j];
 				const UINT64 global_index = result_buf[send_displs[r] + j];
 
 				offdiag_indices[local_i] = global_index + 1; // +1 convention, same as local case
@@ -370,62 +498,105 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 				const std::pair<int, int> cy = get_column_k_k_plus_one(yi, k);
 				const int rowk  = yi.get(k);
 				const int rowkk = yi.get(k+1);
-				const typePk ax = cy.first - rowk - cy.second + rowkk;
+				const typePk ax = cy.first - rowk - cy.second + rowkk; // axial distance from k to k+1
 				P_[k][local_i] = -ax;
-
-				const unsigned int rankfriend = mpi_rank_from_index(global_index);
-				#pragma omp atomic
-				mpi_offdiag_nodes_[k][rankfriend] += 1;
-				#pragma omp atomic
-				mpi_nb_offdiag_[k] += 1;
 			}
 		}
 		
-		// mpi_nb_offdiag_[k] = number of off-diagonal element for transposition (k, k+1) found by this process
+		// mpi_nb_offdiag_local_[k] = number of local off-diagonal element for transposition (k, k+1) 
+		// 							  found by this process and living entirely on this process
 		// 
-		// mpi_offdiag_nodes_[k][rank] = for transposition (k, k+1), number of images belonging to <rank>
+		// mpi_nb_offdiag_remote_[k] = number of off-diagonal elements for transposition (k, k+1)
+		// 							   found by this process, and having the friend SYT on a different process
 		// 
-		// offdiag_indices[i] = 0 for diagonal elements; index+1 of image SYT (k, k+1) Y_[i] (index is the index, from 0 to dimension_)
+		// mpi_offdiag_nodes_remote_only_[k][rank] = for transposition (k, k+1), number of remote images belonging to <rank>
+		// 
+		// offdiag_indices[i] = 0        for diagonal elements
+		// 					  = index+1  for off-diagonal elements, with index being the global index of the image SYT
+		// 
 		
-		for (int rank=0; rank<mpi_world_size_-1; ++rank) {
-			mpi_offdiag_nodes_acc_[k][rank+1] = mpi_offdiag_nodes_acc_[k][rank] + mpi_offdiag_nodes_[k][rank];
-		}
-		
-		UINT64 total_offdiags_count = mpi_offdiag_nodes_acc_[k][mpi_world_size_-1] + mpi_offdiag_nodes_[k][mpi_world_size_-1];
-		
-		if (total_offdiags_count != mpi_nb_offdiag_[k]) {
-			std::cerr << "PROBLEM A" << std::endl;
+		if (mpi_offdiag_nodes_remote_only_[k][mpi_rank_] != 0) {
+			std::cerr << "PROBLEM Z-0 - mpi_offdiag_nodes_remote_only_[k][mpi_rank_] != 0" << std::endl;
 			MPI_Abort(MPI_COMM_WORLD, 1);
 		}
 		
-		// array which will keep track of the number of friend SYTs belonging to each rank
+		for (int rank=0; rank<mpi_world_size_-1; ++rank) {
+			mpi_offdiag_nodes_remote_only_acc_[k][rank+1] = mpi_offdiag_nodes_remote_only_acc_[k][rank] + mpi_offdiag_nodes_remote_only_[k][rank];
+		}
+		
+		const UINT64 total_local_count = mpi_nb_offdiag_local_[k];
+		const UINT64 total_remote_count = mpi_nb_offdiag_remote_[k];
+		
+		mpi_nb_offdiag_[k] = total_local_count + total_remote_count;
+		
+		// array which will keep track of the number of friend SYTs belonging to each rank (only remote ranks)
 		std::vector<UINT64> friend_nodes_count(mpi_world_size_, 0);
 		
-		// array which will keep track of the local index from this process for all off-diagonal elements
-		mpi_local_index_base_[k].resize(total_offdiags_count);
+		// arrays which will keep track of the local base index and of the friend local index for local pairs
+		mpi_local_index_base_local_[k].resize(total_local_count);
+		mpi_local_index_friend_local_[k].resize(total_local_count);
 		
-		// array which will keep track of the local index of the image SYT in the friend process, for all off-diagonal elements
-		std::vector<UINT64> mpi_local_index_friend_temp(total_offdiags_count, 0);
+		// arrays which will keep track of the local base index on this process and of the friend index for remote pairs
+		mpi_local_index_base_remote_[k].resize(total_remote_count);
+		mpi_local_index_friend_remote_[k].resize(total_remote_count); // this will be the receive buffer for indices from MPI communication
 		
-		UINT64 cpt = 0;
+		// 
+		std::vector<typeIndex> mpi_local_index_friend_temp_remote(total_remote_count, 0);
 		
-		for (UINT64 i=0; i<mpi_dimension_; ++i) {
-			if (offdiag_indices[i]>0) {
+		UINT64 cpt_local = 0; // will count the local pairs
+		UINT64 cpt_remote = 0; // will count remote pairs
+		
+		for (UINT64 i=0; i<mpi_dimension_; ++i)
+		{	
+			if (offdiag_indices[i] > 0) {
 				// extract index of image SYT
 				const UINT64 index = offdiag_indices[i] - 1; // global index
 				
+				// extract local index of image SYT
+				const UINT64 local_index_friend = mpi_local_index_from_global_index(index);
+				
 				// compute the MPI rank which owns this SYT
-				const unsigned int rankfriend = mpi_rank_from_index(index);
+				const int rankfriend = mpi_rank_from_index(index);
 				
-				// local index in this process of the original (base) SYT
-				mpi_local_index_base_[k][mpi_offdiag_nodes_acc_[k][rankfriend] + friend_nodes_count[rankfriend]] = i;
+				if (rankfriend == mpi_rank_) {
+					// LOCAL pair
+					
+					// local index of the original (base) SYT belonging to this process
+					mpi_local_index_base_local_[k][cpt_local] = static_cast<typeIndex>(i);
+					
+					// local index of the image (friend) SYT which also belongs to this process
+					mpi_local_index_friend_local_[k][cpt_local] = static_cast<typeIndex>(local_index_friend);
+					
+					cpt_local += 1;
 				
-				// local index of image (friend) SYT in friend process
-				mpi_local_index_friend_temp[mpi_offdiag_nodes_acc_[k][rankfriend] + friend_nodes_count[rankfriend]] = mpi_local_index_from_global_index(index);
-				
-				friend_nodes_count[rankfriend] += 1;
-				cpt += 1;
+				} else {
+					// REMOTE pair
+					
+					// local index in this process of the original (base) SYT
+					mpi_local_index_base_remote_[k][mpi_offdiag_nodes_remote_only_acc_[k][rankfriend] + friend_nodes_count[rankfriend]] = static_cast<typeIndex>(i);
+					
+					// local index of image (friend) SYT in friend process
+					mpi_local_index_friend_temp_remote[mpi_offdiag_nodes_remote_only_acc_[k][rankfriend] + friend_nodes_count[rankfriend]] = static_cast<typeIndex>(local_index_friend);
+					
+					friend_nodes_count[rankfriend] += 1;
+					cpt_remote += 1;
+				}
 			}
+		}
+		
+		if (friend_nodes_count[mpi_rank_] != 0) {
+			std::cerr << "PROBLEM B - friend_nodes_count[mpi_rank_] = " << friend_nodes_count[mpi_rank_] << ", but should be 0" << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+		
+		if (cpt_local != total_local_count) {
+			std::cerr << "PROBLEM C-0 - cpt_local != total_local_count" << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+		
+		if (cpt_remote != total_remote_count) {
+			std::cerr << "PROBLEM C-1 - cpt_remote != total_remote_count" << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
 		}
 		
 		UINT64 temp_test = 0;
@@ -433,13 +604,8 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 			temp_test += friend_nodes_count[rank];
 		}
 		
-		if (cpt!=total_offdiags_count) {
-			std::cerr << "PROBLEM B" << std::endl;
-			MPI_Abort(MPI_COMM_WORLD, 1);
-		}
-		
-		if (temp_test!=total_offdiags_count) {
-			std::cerr << "PROBLEM C" << std::endl;
+		if (temp_test != total_remote_count) {
+			std::cerr << "PROBLEM D - temp_test != total_remote_count" << std::endl;
 			MPI_Abort(MPI_COMM_WORLD, 1);
 		}
 		
@@ -459,7 +625,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		// meaning that each rank sends and receives as many elements from each other rank
 		for (int r = 0; r < mpi_world_size_; ++r) {
 			if (friend_nodes_count[r] != friend_nodes_count_received[r]) {
-				std::cerr << "PROBLEM D: friend_nodes_count mismatch between rank " << mpi_rank_ 
+				std::cerr << "PROBLEM X: friend_nodes_count mismatch between rank " << mpi_rank_ 
 						  << " and rank " << r
 						  << " friend_nodes_count[" << r << "] = " << friend_nodes_count[r]
 						  << "; friend_nodes_count_received[" << r << "] = " << friend_nodes_count_received[r]
@@ -468,21 +634,19 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 			}
 		}
 		
-		mpi_local_index_friend_[k].resize(total_offdiags_count);
-		
 		// Because of the structure of the interaction, recvcounts will be the
 		// same as sendcounts, and rdispls will be the same as sdispls
 		
-		const std::vector<int64_t>& sendrecvcounts = mpi_offdiag_nodes_[k];
-		const std::vector<int64_t>& srdispls = mpi_offdiag_nodes_acc_[k];
+		std::vector<int64_t>& remote_sendrecvcounts = mpi_offdiag_nodes_remote_only_[k];
+		std::vector<int64_t>& remote_srdispls = mpi_offdiag_nodes_remote_only_acc_[k];
 		
 		alltoallv(
-			mpi_local_index_friend_temp,
-			sendrecvcounts,
-			srdispls,
-			mpi_local_index_friend_[k], // receive buffer
-			sendrecvcounts,
-			srdispls,
+			mpi_local_index_friend_temp_remote,
+			remote_sendrecvcounts,
+			remote_srdispls,
+			mpi_local_index_friend_remote_[k],
+			remote_sendrecvcounts,
+			remote_srdispls,
 			MPI_COMM_WORLD
 		);
 		
@@ -491,11 +655,137 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		if (dump_matrices_ == true) {
 			dump_matrix(k);
 		}
-	}
-	
-	time(t_start, "build_matrix_lookups");
+	} // for k
 	
 	free_basis();
+	
+	
+	////////////////////////////////////////
+	// ANALYZE LOCAL AND REMOTE PAIRS ACCROSS ALL RANKS
+	////////////////////////////////////////
+	
+	const int n_transpo = alpha_.n() - 1;
+	
+	// On rank 0: receive from all ranks
+	std::vector<UINT64> gathered_local;
+	std::vector<UINT64> gathered_remote;
+
+	if (mpi_rank_ == 0) {
+		gathered_local.resize(n_transpo * mpi_world_size_);
+		gathered_remote.resize(n_transpo * mpi_world_size_);
+	}
+	
+	MPI_Gather(
+		local_pairs_.data(),
+		n_transpo,
+		MPI_UINT64_T,
+		gathered_local.data(),
+		n_transpo,
+		MPI_UINT64_T,
+        0,
+        MPI_COMM_WORLD
+	);
+
+	MPI_Gather(
+		remote_pairs_.data(),
+		n_transpo,
+		MPI_UINT64_T,
+		gathered_remote.data(),
+		n_transpo,
+		MPI_UINT64_T,
+		0,
+		MPI_COMM_WORLD
+	);
+	
+	if (mpi_rank_ == 0) {
+		
+		// unused for the moment
+		//std::vector<std::vector<UINT64>> all_local_pairs(mpi_world_size_, std::vector<UINT64>(n_transpo));
+		//std::vector<std::vector<UINT64>> all_remote_pairs(mpi_world_size_, std::vector<UINT64>(n_transpo));
+		
+		// totals accross ranks for each transposition (k, k+1)
+		std::vector<UINT64> total_local(n_transpo, 0);
+		std::vector<UINT64> total_remote(n_transpo, 0);
+		
+		// create the matrices all_local_pairs[r][k] and all_remote_pairs[r][k] by unflattening the received arrays
+		for (int r = 0; r < mpi_world_size_; ++r) {
+			for (int k = 0; k < n_transpo; ++k) {
+				//all_local_pairs[r][k] = gathered_local[r * n_transpo + k];
+				//all_remote_pairs[r][k] = gathered_remote[r * n_transpo + k];
+				
+				total_local[k]  += gathered_local [r * n_transpo + k];
+				total_remote[k] += gathered_remote[r * n_transpo + k];
+			}
+		}
+		
+		// correct for double-counting remote pairs due to counting each element of the pair on different ranks
+		for (int k = 0; k < n_transpo; ++k) {
+			if (total_remote[k] % 2 == 1) {
+				std::cerr << "PROBLEM : total_remote[" << k << "] = " << total_remote[k] << " is not a multiple of 2" << std::endl;
+				MPI_Abort(MPI_COMM_WORLD, 1);
+			}
+			total_remote[k] /= 2;
+		}
+		
+		// total number of pairs for each transposition (k, k+1)
+		std::vector<UINT64> total_pairs(n_transpo, 0);
+		for (int k = 0; k < n_transpo; ++k) {
+			total_pairs[k] = total_local[k] + total_remote[k];
+		}
+		
+		// ANALYSIS PER TRANSPOSITION
+		std::cout << "==================================" << std::endl;
+		std::cout << "=== Local/Remote pair analysis ===" << std::endl;
+		std::cout << "==================================" << std::endl;
+		for (int k = 1; k < n_transpo; ++k)
+		{
+			std::cout << "----------------------------------" << std::endl;
+			std::cout << "Transposition (" << k << ", " << k+1 << ")" << std::endl;
+			std::cout << "----------------------------------" << std::endl;
+			std::cout << "dimension_         : " << dimension_ << std::endl;
+			std::cout << "Total off-diags    : " << 2*total_pairs[k] << std::endl;
+			std::cout << "off-diags fraction : " << std::fixed << std::setprecision(2) 
+												 << 100.0 * (double)(2*total_pairs[k])/((double)(dimension_))
+												 << "%" << std::endl;
+			std::cout << "-----------------" << std::endl;
+			std::cout << "Local pairs        : " << total_local[k] << std::endl;
+			std::cout << "Remote pairs       : " << total_remote[k] << std::endl;
+			std::cout << "Local fraction     : " << std::fixed << std::setprecision(2) 
+											     << 100.0 * (double)(total_local[k])/((double)(total_pairs[k])) 
+											     << "%" << std::endl;
+		}
+		std::cout << "==================================" << std::endl;
+		
+		// GLOBAL ANALYSIS
+		UINT64 grand_total_local  = 0;
+		UINT64 grand_total_remote = 0;
+		UINT64 grand_total_pairs  = 0;
+
+		for (int k = 0; k < n_transpo; ++k) {
+			grand_total_local  += total_local[k];
+			grand_total_remote += total_remote[k];
+			grand_total_pairs  += total_pairs[k];
+		}
+
+		std::cout << "==================================" << std::endl;
+		std::cout << "======== GLOBAL SUMMARY ==========" << std::endl;
+		std::cout << "==================================" << std::endl;
+		std::cout << "Total pairs     : " << grand_total_pairs           << std::endl;
+		std::cout << "Local pairs     : " << grand_total_local           << std::endl;
+		std::cout << "Remote pairs    : " << grand_total_remote          << std::endl;
+		std::cout << "Local fraction  : " << std::fixed << std::setprecision(2)
+										  << 100.0 * (double)grand_total_local / (double)grand_total_pairs
+										  << "%" << std::endl;
+		std::cout << "==================================" << std::endl;
+	}
+	
+	////////////////////////////////////////
+	
+	precise_memory_usage();
+	
+	////////////////////////////////////////
+	
+	time(t_start, "build_matrix_lookups");
 }
 
 
@@ -523,24 +813,29 @@ void HBFundMatrixEngineMPI::dump_matrix(const unsigned int k) const
     // Write P_[k]
     out.write(reinterpret_cast<const char*>(P_[k].data()), mpi_dimension_ * sizeof(typePk));
 
-    // Write mpi_nb_offdiag_[k]
-    out.write(reinterpret_cast<const char*>(&mpi_nb_offdiag_[k]), sizeof(UINT64));
+	// Write mpi_nb_offdiag_local_[k]
+    out.write(reinterpret_cast<const char*>(&mpi_nb_offdiag_local_[k]), sizeof(UINT64));
+    
+    // Write mpi_local_index_base_local_[k]
+    out.write(reinterpret_cast<const char*>(mpi_local_index_base_local_[k].data()), mpi_nb_offdiag_local_[k] * sizeof(typeIndex));
 
-    // Write mpi_offdiag_nodes_[k]
-    out.write(reinterpret_cast<const char*>(mpi_offdiag_nodes_[k].data()), mpi_world_size_ * sizeof(INT64));
+    // Write mpi_local_index_friend_local_[k]
+    out.write(reinterpret_cast<const char*>(mpi_local_index_friend_local_[k].data()), mpi_nb_offdiag_local_[k] * sizeof(typeIndex));
+    
+    // Write mpi_nb_offdiag_remote_[k]
+    out.write(reinterpret_cast<const char*>(&mpi_nb_offdiag_remote_[k]), sizeof(UINT64));
 
-    // Write mpi_offdiag_nodes_acc_[k]
-    out.write(reinterpret_cast<const char*>(mpi_offdiag_nodes_acc_[k].data()), mpi_world_size_ * sizeof(INT64));
+	// Write mpi_local_index_base_remote_[k]
+    out.write(reinterpret_cast<const char*>(mpi_local_index_base_remote_[k].data()), mpi_nb_offdiag_remote_[k] * sizeof(typeIndex));
 
-    // Write mpi_local_index_base_[k]
-    const UINT64 base_size = mpi_local_index_base_[k].size();
-    out.write(reinterpret_cast<const char*>(&base_size), sizeof(UINT64));
-    out.write(reinterpret_cast<const char*>(mpi_local_index_base_[k].data()), base_size * sizeof(UINT64));
+    // Write mpi_local_index_friend_remote_[k]
+    out.write(reinterpret_cast<const char*>(mpi_local_index_friend_remote_[k].data()), mpi_nb_offdiag_remote_[k] * sizeof(typeIndex));
 
-    // Write mpi_local_index_friend_[k]
-    const UINT64 friend_size = mpi_local_index_friend_[k].size();
-    out.write(reinterpret_cast<const char*>(&friend_size), sizeof(UINT64));
-    out.write(reinterpret_cast<const char*>(mpi_local_index_friend_[k].data()), friend_size * sizeof(UINT64));
+    // Write mpi_offdiag_nodes_remote_only_[k]
+    out.write(reinterpret_cast<const char*>(mpi_offdiag_nodes_remote_only_[k].data()), mpi_world_size_ * sizeof(INT64));
+
+    // Write mpi_offdiag_nodes_remote_only_acc_[k]
+    out.write(reinterpret_cast<const char*>(mpi_offdiag_nodes_remote_only_acc_[k].data()), mpi_world_size_ * sizeof(INT64));
 }
 
 
@@ -572,58 +867,81 @@ bool HBFundMatrixEngineMPI::load_matrix(const unsigned int k)
         std::cerr << "Warning: failed to read P_[k] from file: " << filename << std::endl;
         return false;
     }
-
-    // Read mpi_nb_offdiag_[k]
-    in.read(reinterpret_cast<char*>(&mpi_nb_offdiag_[k]), sizeof(UINT64));
+	
+	// Read mpi_nb_offdiag_local_[k]
+    in.read(reinterpret_cast<char*>(&mpi_nb_offdiag_local_[k]), sizeof(UINT64));
     if (!in) {
-        std::cerr << "Warning: failed to read mpi_nb_offdiag_[k] from file: " << filename << std::endl;
+        std::cerr << "Warning: failed to read mpi_nb_offdiag_local_[k] from file: " << filename << std::endl;
         return false;
     }
-
-    // Read mpi_offdiag_nodes_[k]
-    mpi_offdiag_nodes_[k].resize(mpi_world_size_);
-    in.read(reinterpret_cast<char*>(mpi_offdiag_nodes_[k].data()), mpi_world_size_ * sizeof(INT64));
+    
+    // Read mpi_local_index_base_local_[k]
+    mpi_local_index_base_local_[k].resize(mpi_nb_offdiag_local_[k]);
+    in.read(reinterpret_cast<char*>(mpi_local_index_base_local_[k].data()), mpi_nb_offdiag_local_[k] * sizeof(typeIndex));
     if (!in) {
-        std::cerr << "Warning: failed to read mpi_offdiag_nodes_[k] from file: " << filename << std::endl;
+        std::cerr << "Warning: failed to read mpi_local_index_base_local_[k] from file: " << filename << std::endl;
         return false;
     }
-
-    // Read mpi_offdiag_nodes_acc_[k]
-    mpi_offdiag_nodes_acc_[k].resize(mpi_world_size_);
-    in.read(reinterpret_cast<char*>(mpi_offdiag_nodes_acc_[k].data()), mpi_world_size_ * sizeof(INT64));
+    
+    // Read mpi_local_index_friend_local_[k]
+    mpi_local_index_friend_local_[k].resize(mpi_nb_offdiag_local_[k]);
+    in.read(reinterpret_cast<char*>(mpi_local_index_friend_local_[k].data()), mpi_nb_offdiag_local_[k] * sizeof(typeIndex));
     if (!in) {
-        std::cerr << "Warning: failed to read mpi_offdiag_nodes_acc_[k] from file: " << filename << std::endl;
+        std::cerr << "Warning: failed to read mpi_local_index_friend_local_[k] from file: " << filename << std::endl;
         return false;
     }
-
-    // Read mpi_local_index_base_[k]
-    UINT64 base_size = 0;
-    in.read(reinterpret_cast<char*>(&base_size), sizeof(UINT64));
-    if (base_size != mpi_nb_offdiag_[k]) {
-        std::cerr << "Warning: base_size mismatch in file: " << filename << std::endl;
-        return false;
-    }
-    mpi_local_index_base_[k].resize(base_size);
-    in.read(reinterpret_cast<char*>(mpi_local_index_base_[k].data()), base_size * sizeof(UINT64));
+	
+    // Read mpi_nb_offdiag_remote_[k]
+    in.read(reinterpret_cast<char*>(&mpi_nb_offdiag_remote_[k]), sizeof(UINT64));
     if (!in) {
-        std::cerr << "Warning: failed to read mpi_local_index_base_[k] from file: " << filename << std::endl;
+        std::cerr << "Warning: failed to read mpi_nb_offdiag_remote_[k] from file: " << filename << std::endl;
         return false;
     }
-
-    // Read mpi_local_index_friend_[k]
-    UINT64 friend_size = 0;
-    in.read(reinterpret_cast<char*>(&friend_size), sizeof(UINT64));
-    if (friend_size != mpi_nb_offdiag_[k]) {
-        std::cerr << "Warning: friend_size mismatch in file: " << filename << std::endl;
-        return false;
-    }
-    mpi_local_index_friend_[k].resize(friend_size);
-    in.read(reinterpret_cast<char*>(mpi_local_index_friend_[k].data()), friend_size * sizeof(UINT64));
+	
+	// Read mpi_local_index_base_remote_[k]
+    mpi_local_index_base_remote_[k].resize(mpi_nb_offdiag_remote_[k]);
+    in.read(reinterpret_cast<char*>(mpi_local_index_base_remote_[k].data()), mpi_nb_offdiag_remote_[k] * sizeof(typeIndex));
     if (!in) {
-        std::cerr << "Warning: failed to read mpi_local_index_friend_[k] from file: " << filename << std::endl;
+        std::cerr << "Warning: failed to read mpi_local_index_base_remote_[k] from file: " << filename << std::endl;
         return false;
     }
 
+    // Read mpi_local_index_friend_remote_[k]
+    mpi_local_index_friend_remote_[k].resize(mpi_nb_offdiag_remote_[k]);
+    in.read(reinterpret_cast<char*>(mpi_local_index_friend_remote_[k].data()), mpi_nb_offdiag_remote_[k] * sizeof(typeIndex));
+    if (!in) {
+        std::cerr << "Warning: failed to read mpi_local_index_friend_remote_[k] from file: " << filename << std::endl;
+        return false;
+    }
+	
+    // Read mpi_offdiag_nodes_remote_only_[k]
+    mpi_offdiag_nodes_remote_only_[k].resize(mpi_world_size_);
+    in.read(reinterpret_cast<char*>(mpi_offdiag_nodes_remote_only_[k].data()), mpi_world_size_ * sizeof(INT64));
+    if (!in) {
+        std::cerr << "Warning: failed to read mpi_offdiag_nodes_remote_only_[k] from file: " << filename << std::endl;
+        return false;
+    }
+
+    // Read mpi_offdiag_nodes_remote_only_acc_[k]
+    mpi_offdiag_nodes_remote_only_acc_[k].resize(mpi_world_size_);
+    in.read(reinterpret_cast<char*>(mpi_offdiag_nodes_remote_only_acc_[k].data()), mpi_world_size_ * sizeof(INT64));
+    if (!in) {
+        std::cerr << "Warning: failed to read mpi_offdiag_nodes_remote_only_acc_[k] from file: " << filename << std::endl;
+        return false;
+    }
+    
+    // Verify we are at end of file - no unexpected trailing data
+	in.peek();
+	if (!in.eof()) {
+		std::cerr << "Warning: unexpected trailing data in file: " << filename << std::endl;
+		return false;
+	}
+	
+	// Deduce other attributes
+	mpi_nb_offdiag_[k] = mpi_nb_offdiag_local_[k] + mpi_nb_offdiag_remote_[k];
+	local_pairs_[k] = mpi_nb_offdiag_local_[k]/2;
+	remote_pairs_[k] = mpi_nb_offdiag_remote_[k];
+	
     return true;
 }
 
@@ -632,8 +950,6 @@ void HBFundMatrixEngineMPI::multiply(const sg_vec<double> & w, sg_vec<double> & 
 {
     if (method=="multiply_mpi_matrix_v1") {
         multiply_mpi_matrix_v1(w, u, a);
-	} else if (method=="multiply_mpi_matrix_v1_numa") {
-        multiply_mpi_matrix_v1_numa(w, u, a);
 	} else {
         std::cerr << "Multiply method undefined" << std::endl;
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -648,18 +964,22 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 	
 	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
 	
+	// u <--- -a*u
 	std::for_each(u.begin(), u.end(), [a](coeff_t& el) {el*=(-a);});
-
-	std::vector<int64_t> sendrecvcounts(mpi_world_size_, 0);
-	std::vector<int64_t> srdispls(mpi_world_size_, 0);
-
-	// one allocation before loop on all bonds and all transpositions in 
-	// each bond. Allocation size based on the max number of off-diagonal
-	// elements accross all transpositions
+	
+	
+	// count the max across remote elements (max taken over all k's)
+	const UINT64 max_offdiag_remote = *std::max_element(mpi_nb_offdiag_remote_.begin(), mpi_nb_offdiag_remote_.end());
+	
+	// count the max of (local+remote) across all k's
 	const UINT64 max_offdiag = *std::max_element(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end());
-	std::vector<coeff_t> send_coeffs(max_offdiag);
-	std::vector<coeff_t> recv_coeffs(max_offdiag);
-
+	
+	// pack work_local_snapshot and send_coeffs in the same buffer
+	std::vector<coeff_t> buffer(max_offdiag);
+	
+	// separate buffer for received coefficients
+	std::vector<coeff_t> recv_coeffs(max_offdiag_remote);
+	
 	unsigned int cpt_bond = 0;
 
 	for (const auto& bond : lattice_.bonds)
@@ -669,53 +989,95 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 		std::copy(w.begin(), w.end(), work_.begin());
 		
 		for (unsigned int j=0; j<bond.ops.size(); ++j)
-		{
-			//std::chrono::time_point<std::chrono::high_resolution_clock> tbondj_0 = std::chrono::high_resolution_clock::now();
-			
+		{	
 			const unsigned int k = bond.ops[j].getk();
 			
-			for (int r=0; r<mpi_world_size_; ++r) {
-				sendrecvcounts[r] = static_cast<int64_t>(mpi_offdiag_nodes_[k][r]);
-				srdispls[r] = static_cast<int64_t>(mpi_offdiag_nodes_acc_[k][r]);
-			}
+			const std::vector<int64_t>& sendrecvcounts = mpi_offdiag_nodes_remote_only_[k];
+			const std::vector<int64_t>& srdispls = mpi_offdiag_nodes_remote_only_acc_[k];
 			
-			// gather all coefficients from this process which will be 
-			// sent to all processes
-			#pragma omp parallel for schedule(guided)
-			for(UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
-				const double rho = 1.0/static_cast<double>(P_[k][mpi_local_index_base_[k][i]]);
-				send_coeffs[i] = work_[mpi_local_index_base_[k][i]] * std::sqrt(1.0-rho*rho);
-			}
+			coeff_t* work_local_snapshot = buffer.data();
+			coeff_t* send_coeffs = buffer.data() + mpi_nb_offdiag_local_[k];
 			
-			//======================================
-			// MPI communication of coefficients
-			//======================================
+			#pragma omp parallel
+			{	
+				// gather all remote elements to be sent to other processes
+#ifdef SG_USE_NUMA
+				#pragma omp for schedule(static)
+#else
+				#pragma omp for schedule(guided)
+#endif
+				for(UINT64 i=0; i<mpi_nb_offdiag_remote_[k]; ++i) {
+					const UINT64 index_base_i = mpi_local_index_base_remote_[k][i];
+					const double rho = 1.0/static_cast<double>(P_[k][index_base_i]);
+					send_coeffs[i] = work_[index_base_i] * std::sqrt(1.0 - rho * rho);
+				}
+				
+				#pragma omp single nowait
+				{
+					//======================================
+					// MPI communication of coefficients
+					//======================================
+					alltoallv(
+						send_coeffs,
+						sendrecvcounts,
+						srdispls,
+						recv_coeffs.data(),
+						sendrecvcounts,
+						srdispls,
+						MPI_COMM_WORLD
+					);
+				}
 			
-			alltoallv(
-				send_coeffs,
-				sendrecvcounts,
-				srdispls,
-				recv_coeffs,
-				sendrecvcounts,
-				srdispls,
-				MPI_COMM_WORLD
-			);
+				// gather all elements from local pairs
+#ifdef SG_USE_NUMA
+				#pragma omp for schedule(static)
+#else
+				#pragma omp for schedule(guided)
+#endif
+				for (UINT64 i = 0; i < mpi_nb_offdiag_local_[k]; ++i) {
+					const UINT64 index_base_i = mpi_local_index_base_local_[k][i];
+					const double rho = 1.0/static_cast<double>(P_[k][index_base_i]);
+					work_local_snapshot[i] = work_[index_base_i] * std::sqrt(1.0 - rho * rho);
+				}
 			
-			//======================================
-			// Perform update of <work> array
-			//======================================
+				#pragma omp barrier
+				
+				//======================================
+				// Perform update of <work> array
+				//======================================
+				
+				// All diagonal terms
+#ifdef SG_USE_NUMA
+				#pragma omp for schedule(static)
+#else
+				#pragma omp for schedule(guided)
+#endif
+				for (UINT64 i=0; i<mpi_dimension_; ++i) {
+					work_[i] *= 1.0/static_cast<double>(P_[k][i]);
+				}
+				
+				// All local off-diagonal terms
+#ifdef SG_USE_NUMA
+				#pragma omp for schedule(static)
+#else
+				#pragma omp for schedule(guided)
+#endif
+				for (UINT64 i=0; i<mpi_nb_offdiag_local_[k]; ++i) {
+					work_[mpi_local_index_friend_local_[k][i]] += work_local_snapshot[i];
+				}
+				
+				// All remote off-diagonal terms
+#ifdef SG_USE_NUMA
+				#pragma omp for schedule(static)
+#else
+				#pragma omp for schedule(guided)
+#endif
+				for (UINT64 i=0; i<mpi_nb_offdiag_remote_[k]; ++i) {
+					work_[mpi_local_index_friend_remote_[k][i]] += recv_coeffs[i];
+				}
 			
-			// All diagonal terms
-			#pragma omp parallel for schedule(guided)
-			for (UINT64 i=0; i<mpi_dimension_; ++i) {
-				work_[i] *= 1.0/static_cast<double>(P_[k][i]);
-			}
+			} // omp parallel section
 			
-			// All off-diagonal terms - no risk of data race at this point
-			#pragma omp parallel for schedule(guided)
-			for (UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
-				work_[mpi_local_index_friend_[k][i]] += recv_coeffs[i];
-			}
 		} // for j (operations in a bond)
 		
 		//===========================
@@ -723,110 +1085,20 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 		//===========================
 		
 		const double J = bond.couplingValue;
+		#pragma omp parallel for schedule(static)
 		for (UINT64 i=0; i<mpi_dimension_; ++i) {
 			u[i] += J * work_[i];
 		}
+		
 		cpt_bond += 1;
-	}
+		
+		//std::chrono::time_point<std::chrono::high_resolution_clock> tbond_3 = std::chrono::high_resolution_clock::now();
+		//time(tbond_0, tbond_3, std::string("Total bond"));
+		
+	} // for bond
 	
 	time(t0, "multiply");
 }
-
-
-template <class coeff_t>
-void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1_numa(const sg_vec<coeff_t>& w, sg_vec<coeff_t>& u, const double a) const
-{
-	// u <--- H*w - a*u
-	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
-	
-	#pragma omp parallel for schedule(static)
-	for (UINT64 i = 0; i < mpi_dimension_; ++i) {
-		u[i] *= -a;
-	}
-
-	std::vector<int64_t> sendrecvcounts(mpi_world_size_, 0);
-	std::vector<int64_t> srdispls(mpi_world_size_, 0);
-
-	// one allocation before loop on all bonds and all transpositions in 
-	// each bond. Allocation size based on the max number of off-diagonal
-	// elements accross all transpositions
-	const UINT64 max_offdiag = *std::max_element(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end());
-	
-	std::vector<coeff_t> send_coeffs(max_offdiag); // use sg_vec instead
-	std::vector<coeff_t> recv_coeffs(max_offdiag); // use sg_vec instead
-
-	for (const auto& bond : lattice_.bonds)
-	{
-		#pragma omp parallel for schedule(static)
-		for (UINT64 i = 0; i < mpi_dimension_; ++i) {
-			work_[i] = w[i];
-		}
-		
-		for (unsigned int j=0; j<bond.ops.size(); ++j)
-		{
-			const unsigned int k = bond.ops[j].getk();
-			
-			for (int r=0; r<mpi_world_size_; ++r) {
-				sendrecvcounts[r] = static_cast<int64_t>(mpi_offdiag_nodes_[k][r]);
-				srdispls[r] = static_cast<int64_t>(mpi_offdiag_nodes_acc_[k][r]);
-			}
-			
-			// gather all coefficients from this process which will be 
-			// sent to all processes
-			//#pragma omp parallel for schedule(guided)
-			#pragma omp parallel for schedule(static)
-			for(UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
-				const double rho = 1.0/static_cast<double>(P_[k][mpi_local_index_base_[k][i]]);
-				send_coeffs[i] = work_[mpi_local_index_base_[k][i]] * std::sqrt(1.0-rho*rho);
-			}
-			
-			//======================================
-			// MPI communication of coefficients
-			//======================================
-			
-			alltoallv(
-				send_coeffs,
-				sendrecvcounts,
-				srdispls,
-				recv_coeffs,
-				sendrecvcounts,
-				srdispls,
-				MPI_COMM_WORLD
-			);
-			
-			//======================================
-			// Perform update of <work> array
-			//======================================
-			
-			// All diagonal terms
-			//#pragma omp parallel for schedule(guided)
-			#pragma omp parallel for schedule(static)
-			for (UINT64 i=0; i<mpi_dimension_; ++i) {
-				work_[i] *= 1.0/static_cast<double>(P_[k][i]);
-			}
-			
-			// All off-diagonal terms - no risk of data race at this point
-			//#pragma omp parallel for schedule(guided)
-			#pragma omp parallel for schedule(static)
-			for (UINT64 i=0; i<mpi_nb_offdiag_[k]; ++i) {
-				work_[mpi_local_index_friend_[k][i]] += recv_coeffs[i];
-			}
-		}
-		
-		//===========================
-		// UPDATE OF LANCZOS VECTOR
-		//===========================
-		const double J = bond.couplingValue;
-		#pragma omp parallel for schedule(static)
-		for (UINT64 i=0; i<mpi_dimension_; ++i) {
-			u[i] += J * work_[i];
-		}
-	}
-	
-	time(t0, "multiply");
-}
-
 
 
 } // namespace sun

@@ -1,7 +1,7 @@
 // Copyright 2026 Samuel GOZEL, GNU GPLv3
 
-#ifndef TEST_UTILS_H
-#define TEST_UTILS_H
+#ifndef TEST_ENERGY_UTILS_H
+#define TEST_ENERGY_UTILS_H
 
 #include <iostream>
 #include <vector>
