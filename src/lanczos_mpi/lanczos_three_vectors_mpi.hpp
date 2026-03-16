@@ -197,7 +197,7 @@ Tmatrix lanczos(const type_mult & multiply,
 		}
 	}
     
-    if ((lp.checkpointing) && (isConverged)) {
+    if ((lp.checkpointing) && (isConverged) && (!lp.keep_checkpoint)) {
         std::remove(lp.checkpoint_file.c_str());
         std::remove((lp.checkpoint_file + ".old").c_str());
         std::remove((lp.checkpoint_file + ".new").c_str());
@@ -473,7 +473,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 		dump_eigpair(energy, eigvec, 0, lp);
 	}
     
-    if ((lp.checkpointing) && (isConverged)) {
+    if ((lp.checkpointing) && (isConverged) && (!lp.keep_checkpoint)) {
         std::remove(lp.checkpoint_file.c_str());
         std::remove((lp.checkpoint_file + ".old").c_str());
         std::remove((lp.checkpoint_file + ".new").c_str());

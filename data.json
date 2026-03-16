@@ -17,6 +17,7 @@
 "checkpointing": false,
 "checkpoint_folder_path": "/scratch/checkpoint/",
 "checkpoint_freq": 10,
+"keep_checkpoint": true,
 "dump_matrices": true,
 "matrix_dump_folder_path": "/scratch/lookups/"
 }
