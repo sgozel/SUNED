@@ -88,6 +88,7 @@ All input parameters must be provided in a ``.json`` file, such as the one provi
 | `checkpointing` | Checkpoint Lanczos iterations for restarting | false |
 | `checkpoint_folder_path` | Folder path for checkpoints | `.` |
 | `checkpoint_freq` | Checkpointing frequency | 5 |
+| `keep_checkpoint` | Keep checkpoint on disk after convergence | false |
 | `dump_matrices` | Write matrices $\tau_{k, k+1}$ to file | false |
 | `matrix_dump_folder_path` | Folder path for $\tau_{k, k+1}$ | `.` |
 

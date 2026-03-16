@@ -60,6 +60,7 @@ struct LanczosParams {
 		checkpoint_file = std::string("checkpoint.bin");
 #endif
 		checkpoint_frequency = 5;
+		keep_checkpoint = false;
 	}
 	
 
@@ -98,7 +99,7 @@ struct LanczosParams {
 		log_freq = inputParam.value("logging_frequency", 1);
 		
 		// Checkpointing
-		checkpointing = bool(inputParam.value("checkpointing", false));
+		checkpointing = inputParam.value("checkpointing", false);
 		checkpoint_folder = inputParam.value("checkpoint_folder_path", "");
 		if ((!checkpoint_folder.empty()) && (checkpoint_folder.back()!='/')) {
 			checkpoint_folder += std::string("/");
@@ -116,6 +117,7 @@ struct LanczosParams {
 #endif
 		checkpoint_file = checkpoint_folder + checkpoint_file;
 		checkpoint_frequency = inputParam.value("checkpoint_frequency", 5);
+		keep_checkpoint = inputParam.value("keep_checkpoint", false);
 	}
 	
 	void print() {
@@ -146,6 +148,7 @@ struct LanczosParams {
 			std::cout << "checkpoint_folder ------ : " << checkpoint_folder << std::endl;
 			std::cout << "checkpoint_file -------- : " << checkpoint_file << std::endl;
 			std::cout << "checkpoint_frequency --- : " << checkpoint_frequency << std::endl;
+			std::cout << "keep_checkpoint -------- : " << keep_checkpoint << std::endl;
 		}
 		std::cout.flags(coutflags);
 	}
@@ -175,6 +178,7 @@ struct LanczosParams {
     std::string checkpoint_folder;
     std::string checkpoint_file;
     unsigned int checkpoint_frequency;
+    bool keep_checkpoint;
 };
 
 } // namespace lanczos(mpi)
