@@ -102,6 +102,8 @@ else()
 		test_tmatrix.cpp
 		test_bsyt.cpp
 		test_bsyt_usage.cpp
+		test_vsyt.cpp
+		test_vsyt_usage.cpp
 	)
 	
 	#=======================================================================
