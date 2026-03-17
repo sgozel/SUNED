@@ -2,31 +2,49 @@
 
 
 template<class type_t>
-std::vector<vSYT<type_t>> get_SYT(const Irrep & alpha)
+std::vector<vSYT<type_t>> get_SYT(const Irrep & alpha, const UINT64 from, UINT64 dim)
 {
-	
 	unsigned int n = alpha.n();
 	unsigned int nl = alpha.nrows();
 	std::vector<unsigned int> alphaT = alpha.transpose();
 	UINT64 falpha = multiplicity(alpha);
 	
-	std::vector<vSYT<type_t>> Y(falpha, vSYT<type_t>(n));
+	if (from >= falpha) {
+		throw std::runtime_error("ERROR : get_SYT : from >= falpha");
+	}
+	
+	if (dim == std::numeric_limits<UINT64>::max()) {
+		dim = falpha;
+	}
+	
+	if (from + dim > falpha) {
+		throw std::runtime_error("ERROR : get_SYT : from + dim > falpha.");
+	}
+	
+	std::vector<vSYT<type_t>> Y(dim, vSYT<type_t>(n));
 	
 	// construct first SYT
-    vSYT<type_t> y0(n);
+    vSYT<type_t> yprev(n);
     unsigned int cptel = 0;
     for (unsigned int j=0; j<alpha[0]; ++j) {
         for (unsigned int row=0; row<alphaT[j]; ++row) {
-            y0.set(cptel, row);
+            yprev.set(cptel, row);
             cptel += 1;
         }
     }
 	
-	Y[0] = y0;
+	UINT64 cpt = 0;
+    
+    if (from == 0) {
+		Y[cpt] = yprev;
+		cpt += 1;
+	}
+	
     UINT64 s = 1;
     
-    while (s<falpha) {
-        vSYT<type_t> y(Y[s-1]);
+    while ((cpt<dim) && (s<falpha))
+    {
+        vSYT<type_t> y(yprev);
 
         std::vector<unsigned int> lbd(nl+1, 0);
         lbd[0] = 1;
@@ -58,7 +76,12 @@ std::vector<vSYT<type_t>> get_SYT(const Irrep & alpha)
                 r += 1;
             }
         }
-        Y[s] = y;
+        if ((s >= from) && (cpt < dim)) {
+			Y[cpt] = y;
+			cpt += 1;
+		}
+		
+		yprev = y;
         s += 1;
     }
     
@@ -119,7 +142,7 @@ int get_axial_distance(const vSYT<type_t> & y, const std::vector<int> & cy, cons
 template<class type_t>
 void fullsimplify_development(std::vector<vSYT<type_t>> & ydev,
                               std::vector<double> & coeffdev,
-                              const UINT64 sorted_up_to = 0)
+                              const UINT64 sorted_up_to)
 {
     if (ydev.size() <= 1) {
 		return;

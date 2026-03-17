@@ -7,16 +7,20 @@
 #include <iomanip>
 #include <vector>
 #include <utility>
+#include <limits>
+#include <cmath>
+#include <stdexcept>
 
 #include "../syt/vsyt.h"
 #include "../irrep/irrep.h"
 #include "../utils/utils.h"
+#include "../../common/datatypes.h"
 
 
 namespace sun {
 
 template<class type_t>
-std::vector<vSYT<type_t>> get_SYT(const Irrep & alpha);
+std::vector<vSYT<type_t>> get_SYT(const Irrep & alpha, const UINT64 from = 0, UINT64 dim = std::numeric_limits<UINT64>::max());
 
 
 template<class type_t>

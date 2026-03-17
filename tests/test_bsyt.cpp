@@ -122,7 +122,7 @@ TEST(bSYTExchange, ThreeWayExchangeValue)
 }
 
 
-TEST(bSYTOperatorEqual, OperatorEqual)
+TEST(bSYTOperatorComparison, OperatorEqual)
 {
 	// 0 1 3
 	// 2 4
@@ -150,7 +150,49 @@ TEST(bSYTOperatorEqual, OperatorEqual)
 }
 
 
-TEST(bSYTOperatorLessGreater, OperatorLessGreater)
+TEST(bSYTOperatorComparison, OperatorLessThan)
+{
+	sun::bSYT<uint64_t, 2> y1;
+    y1.set(0, 0);
+    y1.set(1, 0);
+    y1.set(2, 1);
+    EXPECT_EQ(y1.value(), 16ULL);
+    
+    sun::bSYT<uint64_t, 2> y2;
+    y2.set(0, 0);
+    y2.set(1, 1);
+    y2.set(2, 0);
+    EXPECT_EQ(y2.value(), 4ULL);
+    
+    EXPECT_EQ(y1<y2, false);
+    EXPECT_EQ(y2<y1, true);
+    EXPECT_EQ(y1<y1, false);
+    EXPECT_EQ(y2<y2, false);
+}
+
+
+TEST(bSYTOperatorComparison, OperatorLessOrEqualThan)
+{
+	sun::bSYT<uint64_t, 2> y1;
+    y1.set(0, 0);
+    y1.set(1, 0);
+    y1.set(2, 1);
+    EXPECT_EQ(y1.value(), 16ULL);
+    
+    sun::bSYT<uint64_t, 2> y2;
+    y2.set(0, 0);
+    y2.set(1, 1);
+    y2.set(2, 0);
+    EXPECT_EQ(y2.value(), 4ULL);
+    
+    EXPECT_EQ(y1<=y2, false);
+    EXPECT_EQ(y2<=y1, true);
+    EXPECT_EQ(y1<=y1, true);
+    EXPECT_EQ(y2<=y2, true);
+}
+
+
+TEST(bSYTOperatorComparison, OperatorGreaterThan)
 {
 	sun::bSYT<uint64_t, 2> y1;
     y1.set(0, 0);
@@ -165,8 +207,32 @@ TEST(bSYTOperatorLessGreater, OperatorLessGreater)
     EXPECT_EQ(y2.value(), 4ULL);
     
     EXPECT_EQ(y1>y2, true);
-    EXPECT_EQ(y1<y2, false);
+    EXPECT_EQ(y2>y1, false);
+    EXPECT_EQ(y1>y1, false);
+    EXPECT_EQ(y2>y2, false);
 }
+
+
+TEST(bSYTOperatorComparison, OperatorGreaterOrEqualThan)
+{
+	sun::bSYT<uint64_t, 2> y1;
+    y1.set(0, 0);
+    y1.set(1, 0);
+    y1.set(2, 1);
+    EXPECT_EQ(y1.value(), 16ULL);
+    
+    sun::bSYT<uint64_t, 2> y2;
+    y2.set(0, 0);
+    y2.set(1, 1);
+    y2.set(2, 0);
+    EXPECT_EQ(y2.value(), 4ULL);
+    
+    EXPECT_EQ(y1>=y2, true);
+    EXPECT_EQ(y2>=y1, false);
+    EXPECT_EQ(y1>=y1, true);
+    EXPECT_EQ(y2>=y2, true);
+}
+
 
 TEST(bSYTCheck, ContainerBitExtent)
 {
