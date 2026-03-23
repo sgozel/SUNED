@@ -188,7 +188,7 @@ Tmatrix lanczos(const type_mult & multiply,
         }
     }
     
-    if (mpi_rank==0) {
+    if (mpi_rank == 0) {
 		verify_convergence(tmat, cpt, lp, isConverged);
 		
 		if (lp.logging) {
@@ -340,7 +340,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
             lanczos_step(u, v, w, alpha, beta, multiply);
             tmat.push_back(alpha, beta);
             
-            if (mpi_rank==0) {
+            if (mpi_rank == 0) {
 				if (lp.logging & (cpt % lp.log_freq == 0)) {
 					tmat.log(lp.logging_folder);
 					tmat.log_eigvals(lp.k, lp.logging_folder);
@@ -376,7 +376,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
             }
         }
         
-        if (mpi_rank==0) {
+        if (mpi_rank == 0) {
 			verify_convergence(tmat, cpt, lp, isConverged);
 			
 			if (lp.logging) {
@@ -388,7 +388,9 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
     }
     
     // ========== SECOND PASS: Build eigenvector ==========
-    std::cout << "Second pass -- build eigenvector ..." << std::endl;
+    if (mpi_rank == 0) {
+        std::cout << "Second pass -- build eigenvector ..." << std::endl;
+    }
     
     std::vector<std::vector<double>> eigvecs = tmat.eigenvectors();
     const auto& gs = eigvecs[0];
