@@ -284,24 +284,31 @@ void Lattice::print_sites() const
 	std::cout << "------------------------------------------" << std::endl;
 	std::cout << "Parsed sites: " << Ns_ << std::endl;
 	std::cout << "------------------------------------------" << std::endl;
-	for (unsigned int j=0; j<Ns_; ++j) {
+	std::ios_base::fmtflags coutflags(std::cout.flags());
+	std::cout << std::fixed;
+    std::cout << std::setprecision(6);
+	for (unsigned int j = 0; j < Ns_; ++j) {
 		std::cout << j << " (" << sites_[j][0] << ", " << sites_[j][1] << ", " << sites_[j][2] << ")" << std::endl;
 	}
+	std::cout.flags(coutflags);
 }
+
 
 void Lattice::print_bonds() const
 {
 	std::cout << "------------------------------------------" << std::endl;
 	std::cout << "Parsed bonds: " << nbonds_ << std::endl;
 	std::cout << "------------------------------------------" << std::endl;
-	for (unsigned int j=0; j<nbonds_; ++j) {
+	std::ios_base::fmtflags coutflags(std::cout.flags());
+	for (unsigned int j = 0; j < nbonds_; ++j) {
 		std::cout << std::right << std::setw(2) << j << ") [" 
 				  << std::right << std::setw(6) << bonds[j].id_ << "] "
 		          << bonds[j].couplingName << "=" 
-				  << bonds[j].couplingValue << ": " 
+				  << std::fixed << std::setprecision(4) << bonds[j].couplingValue << ": " 
 				  << "[" << bonds[j].ops.size() << "] : " 
 				  << bonds[j].p << " = " << bonds[j].ops << std::endl;
 	}
+	std::cout.flags(coutflags);
 }
 
 
@@ -310,7 +317,7 @@ void Lattice::print_bonds_light() const
 	std::cout << "------------------------------------------" << std::endl;
 	std::cout << "Parsed bonds: " << nbonds_ << std::endl;
 	std::cout << "------------------------------------------" << std::endl;
-	for (unsigned int j=0; j<nbonds_; ++j) {
+	for (unsigned int j = 0; j < nbonds_; ++j) {
 		std::cout << bonds[j].p << std::endl;
 	}
 }
@@ -321,7 +328,7 @@ void Lattice::print_bonds_light_with_decomposition() const
 	std::cout << "------------------------------------------" << std::endl;
 	std::cout << "Parsed bonds: " << nbonds_ << std::endl;
 	std::cout << "------------------------------------------" << std::endl;
-	for (unsigned int j=0; j<nbonds_; ++j) {
+	for (unsigned int j = 0; j < nbonds_; ++j) {
 		std::cout << std::right << std::setw(2) << j << ") {"
 				  << (bonds[j].ops.size()+1)/2
 				  << "} : " 
