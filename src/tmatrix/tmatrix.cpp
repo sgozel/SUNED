@@ -169,19 +169,23 @@ void Tmatrix::log(const std::string& folder) const
     }
 }
 
-void Tmatrix::log_eigval(const std::string& folder) const
+void Tmatrix::log_eigvals(unsigned int k, const std::string& folder) const
 {
-	std::string eigval_filename = folder + "eigval_0.log";
+	k = std::min(k, n_);
 	
-	std::ofstream out(eigval_filename);
-    if (!out) {
-        throw std::runtime_error("Cannot open file: " + eigval_filename);
-    }
-    out << "First eigenvalue of Tmatrix" << std::endl;
-    out << std::fixed << std::setprecision(16);
-	
-	for (const auto& [key, value] : eigvals_) {
-		out << key << ": " << value[0] << std::endl;
+	for (unsigned int t = 0; t < k; ++t)
+	{
+		std::string eigval_filename = folder + "eigval_" + std::to_string(t) + ".log";
+		std::ofstream out(eigval_filename);
+		if (!out) {
+			throw std::runtime_error("Cannot open file: " + eigval_filename);
+		}
+		out << "Eigenvalue " << t << " of Tmatrix" << std::endl;
+		out << std::fixed << std::setprecision(16);
+		
+		for (const auto& [key, value] : eigvals_) {
+			out << key << ": " << value[t] << std::endl;
+		}
 	}
 }
 

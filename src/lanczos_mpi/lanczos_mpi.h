@@ -31,10 +31,10 @@ template<class coeff_t>
 void numa_lanczos_init_vector(sg_vec<coeff_t>& v, const UINT64 dimension, const unsigned int seed);
 
 
-std::vector<double> residual(Tmatrix & tmat, const unsigned int k);
+std::vector<double> residual(Tmatrix & tmat, unsigned int k);
 
 
-std::vector<double> ritz_value_stabilization(Tmatrix & tmat, const unsigned int k);
+std::vector<double> ritz_value_stabilization(Tmatrix & tmat, unsigned int k);
 
 
 bool convergence(Tmatrix & tmat, const LanczosParams & lp);

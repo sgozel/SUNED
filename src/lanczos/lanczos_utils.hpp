@@ -67,28 +67,39 @@ void numa_lanczos_init_vector(sg_vec<coeff_t>& v, const UINT64 dimension, const 
 }
 
 
-std::vector<double> residual(Tmatrix & tmat, const unsigned int k)
+std::vector<double> residual(Tmatrix & tmat, unsigned int k)
 {
+	const unsigned int n = tmat.size();
+	if (n == 1) {
+		throw std::runtime_error("Impossible to compute residual of 1-dimensional Tmatrix");
+	}
+	k = std::min(k, n-1);
 	Tmatrix tmat_prev = tmat;
 	tmat_prev.pop_back();
 	std::vector<std::vector<double>> eigvecs_prev = tmat_prev.eigenvectors();
+	
 	std::vector<double> residuals(k, 0.0);
-	for (unsigned int i=0; i<k; ++i) {
+	for (unsigned int i = 0; i < k; ++i) {
 		residuals[i] = std::abs(tmat.get_last_beta() * eigvecs_prev[i][tmat_prev.size()-1]);
 	}
 	return residuals;
 }
 
 
-std::vector<double> ritz_value_stabilization(Tmatrix & tmat, const unsigned int k)
+std::vector<double> ritz_value_stabilization(Tmatrix & tmat, unsigned int k)
 {
+	const unsigned int n = tmat.size();
+	if (n == 1) {
+		throw std::runtime_error("Impossible to compute ritz_value_stabilization of 1-dimensional Tmatrix");
+	}
+	k = std::min(k, n-1);
     std::vector<double> eigvals = tmat.eigenvalues();
     Tmatrix tmat_prev = tmat;
     tmat_prev.pop_back();
     std::vector<double> eigvals_prev = tmat_prev.eigenvalues();
     
     std::vector<double> rvs(k, 0.0);
-    for (unsigned int i=0; i<k; ++i) {
+    for (unsigned int i = 0; i < k; ++i) {
 		rvs[i] = std::abs(eigvals[i] - eigvals_prev[i]) / std::abs(eigvals[i]);
 	}
     return rvs;
@@ -99,7 +110,7 @@ bool convergence(Tmatrix & tmat, const LanczosParams & lp)
 {
     bool isConverged = false;
     unsigned int n = tmat.size();
-    if (n>lp.k+1) {
+    if (n > lp.k) {
 		std::vector<double> residuals = residual(tmat, lp.k);
 		std::vector<double> rvs = ritz_value_stabilization(tmat, lp.k);
         
@@ -112,7 +123,7 @@ bool convergence(Tmatrix & tmat, const LanczosParams & lp)
 			isConverged = true;
 		}
 		
-		if (lp.logging==true) {
+		if (lp.logging == true) {
 			// log residuals
 			std::string filename_residuals = lp.logging_folder + "residuals.log";
 			std::ofstream out_residuals(filename_residuals, std::ios::app);
@@ -121,7 +132,7 @@ bool convergence(Tmatrix & tmat, const LanczosParams & lp)
 			}
 			out_residuals << n << ": " << std::flush;
 			out_residuals << std::fixed << std::setprecision(12) << std::scientific;
-			for (unsigned int i=0; i<lp.k; ++i) {
+			for (size_t i = 0; i < residuals.size(); ++i) {
 				out_residuals << residuals[i] << std::flush << " ";
 			}
 			out_residuals << std::endl;
@@ -133,7 +144,7 @@ bool convergence(Tmatrix & tmat, const LanczosParams & lp)
 			}
 			out_rvs << n << ": " << std::flush;
 			out_rvs << std::fixed << std::setprecision(12) << std::scientific;
-			for (unsigned int i=0; i<lp.k; ++i) {
+			for (size_t i = 0; i < rvs.size(); ++i) {
 				out_rvs << rvs[i] << std::flush << " ";
 			}
 			out_rvs << std::endl;
