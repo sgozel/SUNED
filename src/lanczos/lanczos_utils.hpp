@@ -147,7 +147,7 @@ void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosPar
 {
 	std::cout << "Performed " << cpt << " iterations" << std::endl;
 
-    if ( (cpt==lp.max_iter) && (isConverged==false) ) {
+    if ( (cpt == lp.max_iter) && (isConverged == false) ) {
         std::cout << "--------------------------------------" << std::endl;
         std::cout << "Warning: in Lanczos: reached maximum number of iterations (max_iter=" << lp.max_iter << ")." << std::endl;
         if (tmat.size() != lp.max_iter) {
@@ -156,14 +156,14 @@ void verify_convergence(Tmatrix & tmat, const unsigned int cpt, const LanczosPar
 	}
 	
 	std::cout << "Tmatrix is of dimension : " << tmat.size() << std::endl;
-	std::ios_base::fmtflags coutflags(std::cout.flags());
 	
-	const unsigned int k = std::min(lp.max_iter, static_cast<unsigned int>(10));
+	const unsigned int k = std::min(cpt, std::max(lp.k+1, static_cast<unsigned int>(10)));
 	std::vector<double> residuals = residual(tmat, k);
 	std::vector<double> rvs = ritz_value_stabilization(tmat, k);
 	std::vector<double> eigvals = tmat.eigenvalues();
 	
-	for (unsigned int t=0; t<residuals.size(); ++t) {
+	std::ios_base::fmtflags coutflags(std::cout.flags());
+	for (size_t t = 0; t < residuals.size(); ++t) {
 		std::cout << "Eigenvalue[" << t << "] = "
 				  << std::setprecision(16) << std::defaultfloat << eigvals[t] 
 				  << " (r="
