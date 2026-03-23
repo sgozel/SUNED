@@ -241,3 +241,47 @@ TEST(HBFundMatrixEngineMPI, DumpLoadEigvec)
 	EXPECT_EQ(eigpair_computed.second.size(), eigpair_loaded.second.size());
 	expect_equal_vec(eigpair_computed.second, eigpair_loaded.second);
 }
+
+
+TEST(HBFundMatrixEngineMPI, Correlations)
+{
+	int mpi_rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+	if (mpi_rank == 0) {
+		PRINT_SUNED_VERSION
+	}
+	
+	const std::string mvm_method("multiply_mpi_matrix_v1");
+	
+	std::string filename("TEST_DATA_ENERGY_SU3.json");
+	std::vector<EnergySample> samples = read_energy_test_data(filename);
+	EnergySample testsample = samples[5];
+
+	nlohmann::json inputParam = {
+			{"N", testsample.N}, 
+			{"Ns", testsample.Ns}, 
+			{"alpha", testsample.alpha.get_vector()}, 
+			{"latticefile", testsample.lattice}, 
+			{"J", 1.0}, 
+			{"tol_ritz", 1.0e-14}, 
+			{"tol_residual", 1.0e-14}, 
+			{"logging", false}, 
+			{"checkpointing", false}, 
+			{"dump_matrices", false},
+			{"dump_eigvec", false}
+	};
+	
+	// Compute eigenpair
+	sun::HBFundMatrixEngineMPI engine1(inputParam);
+	engine1.init();
+	engine1.build_matrix_lookups();
+	std::pair<double, sg_vec<double>> eigpair = engine1.eigenpair(mvm_method);
+	
+	// Check eigenvalue
+	EXPECT_NEAR(eigpair.first, testsample.energy, 1e-12);
+	
+	// Compute correlations
+	std::vector<double> C = engine1.correlations(eigpair.second);
+	
+	EXPECT_EQ(C[0], 1.0); // quite a trivial test at this point ...
+}

@@ -67,6 +67,9 @@ int main(int argc, char* argv[])
 		std::cout << "In main: from eigenpair(), energy = " << eigpair.first << std::endl;
 	}
     engine.check_eigvec(eigpair, mvm_method);
+    
+    engine.correlations(eigpair.second);
+    
 	*/
 	
 	if (mpi_rank == 0) {

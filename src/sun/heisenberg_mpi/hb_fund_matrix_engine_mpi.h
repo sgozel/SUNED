@@ -31,12 +31,17 @@ public:
     
 	template <class coeff_t>
     void multiply_mpi_matrix_v1(const sg_vec<coeff_t>&, sg_vec<coeff_t>&, const double) const;
-
+	
+	template <class T>
+	std::vector<double> correlations(const T&, const unsigned int refsite = 0) const;
+	
 private:
 	void free_basis();
 	void dump_matrix(const unsigned int k) const;
 	bool load_matrix(const unsigned int k);
 	void precise_memory_usage() const;
+	
+	void apply_transpositions(const std::vector<AdjacentTransposition>&) const;
 
 protected:
 	bool dump_matrices_;
@@ -61,9 +66,14 @@ protected:
 	
 	std::vector<std::vector<typeIndex>> mpi_local_index_base_remote_;    // [k][i] local base index for remote pairs
 	std::vector<std::vector<typeIndex>> mpi_local_index_friend_remote_;  // [k][i] local friend index for remote pairs (different rank)
-
+	
+	UINT64 max_offdiag_;
+	UINT64 max_offdiag_remote_;
+	
 private:
 	mutable sg_vec<double> work_;
+	mutable std::vector<double> buffer_;
+	mutable std::vector<double> recv_coeffs_;
 };
 
 } // namespace sun

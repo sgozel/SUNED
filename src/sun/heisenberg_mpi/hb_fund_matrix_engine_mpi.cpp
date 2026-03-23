@@ -210,10 +210,7 @@ void HBFundMatrixEngineMPI::precise_memory_usage() const
 			memMatrixLookups += temp;
 		}
 		
-		const UINT64 max_offdiag_remote = *std::max_element(mpi_nb_offdiag_remote_.begin(), mpi_nb_offdiag_remote_.end());
-		const UINT64 max_offdiag = *std::max_element(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end());
-		
-		double memBufferArrays = sizeof(double) * (static_cast<double>(max_offdiag)/factor + static_cast<double>(max_offdiag_remote)/factor);
+		double memBufferArrays = sizeof(double) * (static_cast<double>(max_offdiag_)/factor + static_cast<double>(max_offdiag_remote_)/factor);
 		
 		double memTotal = memLanczos + memWorkArray + memMatrixLookups + memBufferArrays;
 		
@@ -659,6 +656,11 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 	
 	free_basis();
 	
+	// count the max across remote elements (max taken over all k's)
+	max_offdiag_remote_ = *std::max_element(mpi_nb_offdiag_remote_.begin(), mpi_nb_offdiag_remote_.end());
+	
+	// count the max of (local+remote) across all k's
+	max_offdiag_ = *std::max_element(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end());
 	
 	////////////////////////////////////////
 	// ANALYZE LOCAL AND REMOTE PAIRS ACCROSS ALL RANKS
@@ -946,6 +948,162 @@ bool HBFundMatrixEngineMPI::load_matrix(const unsigned int k)
 }
 
 
+template <class T>
+std::vector<double> HBFundMatrixEngineMPI::correlations(const T& v, const unsigned int refsite) const
+{
+	auto t0 = std::chrono::high_resolution_clock::now();
+	
+	if (mpi_rank_ == 0) {
+		std::cout << "::::::::::::::::::::::::::::::::::" << std::endl;
+		std::cout << "Start computing correlations - reference site = " << refsite << std::endl;
+		std::cout << "::::::::::::::::::::::::::::::::::" << std::endl;
+	}
+	
+	std::vector<double> C(alpha_.n());
+	C[refsite] = 1.0;
+	
+	buffer_.resize(max_offdiag_);
+	recv_coeffs_.resize(max_offdiag_remote_);
+	
+	for (unsigned int t = 0; t < alpha_.n(); ++t)
+	{	
+		if (t != refsite) {
+
+			// Compute C[t] = <v|(refsite, t)|v>
+			
+			const Transposition transpo(refsite, t);
+			const std::vector<AdjacentTransposition> ops = transpo.toAdjacentTransposition();
+			
+			// copy eigenvector v to work_ array
+			work_ = v;
+			
+			// apply all adjacent transpositions on work_
+			apply_transpositions(ops);
+			
+			// Compute overlap C[t] = <v|work_>
+			double overlap_loc = 0.0;
+			#pragma omp parallel for reduction(+:overlap_loc) schedule(static)
+			for (UINT64 i = 0; i < mpi_dimension_; ++i) {
+				overlap_loc += (double)v[i] * (double)work_[i];
+			}
+			MPI_Allreduce(&overlap_loc, &C[t], 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+		}
+		
+		// print result to file
+		if (mpi_rank_ == 0) {
+			std::ios_base::fmtflags coutflags(std::cout.flags());
+			std::cout << std::fixed;
+			std::cout << std::setprecision(12);
+			std::cout << "C[" << t << "] = " 
+					  << std::setw(14) << C[t] << std::endl;
+			std::cout.flags(coutflags);
+		}
+	} // C[t]
+	
+	time(t0, "correlations");
+	
+	return C;
+}
+
+template std::vector<double> HBFundMatrixEngineMPI::correlations<sg_vec<double>>(const sg_vec<double>&, const unsigned int) const;
+
+
+void HBFundMatrixEngineMPI::apply_transpositions(const std::vector<AdjacentTransposition>& ops) const
+{
+	for (unsigned int j = 0; j < ops.size(); ++j)
+	{	
+		const unsigned int k = ops[j].getk();
+		
+		const std::vector<int64_t>& sendrecvcounts = mpi_offdiag_nodes_remote_only_[k];
+		const std::vector<int64_t>& srdispls = mpi_offdiag_nodes_remote_only_acc_[k];
+		
+		double* work_local_snapshot = buffer_.data();
+		double* send_coeffs = buffer_.data() + mpi_nb_offdiag_local_[k];
+		
+		#pragma omp parallel
+		{	
+			// gather all remote elements to be sent to other processes
+#ifdef SG_USE_NUMA
+			#pragma omp for schedule(static)
+#else
+			#pragma omp for schedule(guided)
+#endif
+			for(UINT64 i = 0; i < mpi_nb_offdiag_remote_[k]; ++i) {
+				const UINT64 index_base_i = mpi_local_index_base_remote_[k][i];
+				const double rho = 1.0/static_cast<double>(P_[k][index_base_i]);
+				send_coeffs[i] = work_[index_base_i] * std::sqrt(1.0 - rho * rho);
+			}
+			
+			#pragma omp single nowait
+			{
+				//======================================
+				// MPI communication of coefficients
+				//======================================
+				alltoallv(
+					send_coeffs,
+					sendrecvcounts,
+					srdispls,
+					recv_coeffs_.data(),
+					sendrecvcounts,
+					srdispls,
+					MPI_COMM_WORLD
+				);
+			}
+		
+			// gather all elements from local pairs
+#ifdef SG_USE_NUMA
+			#pragma omp for schedule(static)
+#else
+			#pragma omp for schedule(guided)
+#endif
+			for (UINT64 i = 0; i < mpi_nb_offdiag_local_[k]; ++i) {
+				const UINT64 index_base_i = mpi_local_index_base_local_[k][i];
+				const double rho = 1.0/static_cast<double>(P_[k][index_base_i]);
+				work_local_snapshot[i] = work_[index_base_i] * std::sqrt(1.0 - rho * rho);
+			}
+		
+			#pragma omp barrier
+			
+			//======================================
+			// Perform update of <work> array
+			//======================================
+			
+			// All diagonal terms
+#ifdef SG_USE_NUMA
+			#pragma omp for schedule(static)
+#else
+			#pragma omp for schedule(guided)
+#endif
+			for (UINT64 i=0; i<mpi_dimension_; ++i) {
+				work_[i] *= 1.0/static_cast<double>(P_[k][i]);
+			}
+			
+			// All local off-diagonal terms
+#ifdef SG_USE_NUMA
+			#pragma omp for schedule(static)
+#else
+			#pragma omp for schedule(guided)
+#endif
+			for (UINT64 i=0; i<mpi_nb_offdiag_local_[k]; ++i) {
+				work_[mpi_local_index_friend_local_[k][i]] += work_local_snapshot[i];
+			}
+			
+			// All remote off-diagonal terms
+#ifdef SG_USE_NUMA
+			#pragma omp for schedule(static)
+#else
+			#pragma omp for schedule(guided)
+#endif
+			for (UINT64 i=0; i<mpi_nb_offdiag_remote_[k]; ++i) {
+				work_[mpi_local_index_friend_remote_[k][i]] += recv_coeffs_[i];
+			}
+		
+		} // omp parallel section
+		
+	} // for j (operations in a bond)
+}
+
+
 void HBFundMatrixEngineMPI::multiply(const sg_vec<double> & w, sg_vec<double> & u, const double & a, const std::string & method) const
 {
     if (method=="multiply_mpi_matrix_v1") {
@@ -962,140 +1120,34 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 {
 	// u <--- H*w - a*u
 	
-	std::chrono::time_point<std::chrono::high_resolution_clock> t0 = std::chrono::high_resolution_clock::now();
+	auto t0 = std::chrono::high_resolution_clock::now();
 	
 	// u <--- -a*u
 	std::for_each(u.begin(), u.end(), [a](coeff_t& el) {el*=(-a);});
 	
-	
-	// count the max across remote elements (max taken over all k's)
-	const UINT64 max_offdiag_remote = *std::max_element(mpi_nb_offdiag_remote_.begin(), mpi_nb_offdiag_remote_.end());
-	
-	// count the max of (local+remote) across all k's
-	const UINT64 max_offdiag = *std::max_element(mpi_nb_offdiag_.begin(), mpi_nb_offdiag_.end());
-	
 	// pack work_local_snapshot and send_coeffs in the same buffer
-	std::vector<coeff_t> buffer(max_offdiag);
+	buffer_.resize(max_offdiag_);
 	
 	// separate buffer for received coefficients
-	std::vector<coeff_t> recv_coeffs(max_offdiag_remote);
+	recv_coeffs_.resize(max_offdiag_remote_);
 	
-	unsigned int cpt_bond = 0;
-
 	for (const auto& bond : lattice_.bonds)
-	{
-		//std::chrono::time_point<std::chrono::high_resolution_clock> tbond_0 = std::chrono::high_resolution_clock::now();
-		
-		std::copy(w.begin(), w.end(), work_.begin());
-		
-		for (unsigned int j=0; j<bond.ops.size(); ++j)
-		{	
-			const unsigned int k = bond.ops[j].getk();
-			
-			const std::vector<int64_t>& sendrecvcounts = mpi_offdiag_nodes_remote_only_[k];
-			const std::vector<int64_t>& srdispls = mpi_offdiag_nodes_remote_only_acc_[k];
-			
-			coeff_t* work_local_snapshot = buffer.data();
-			coeff_t* send_coeffs = buffer.data() + mpi_nb_offdiag_local_[k];
-			
-			#pragma omp parallel
-			{	
-				// gather all remote elements to be sent to other processes
-#ifdef SG_USE_NUMA
-				#pragma omp for schedule(static)
-#else
-				#pragma omp for schedule(guided)
-#endif
-				for(UINT64 i=0; i<mpi_nb_offdiag_remote_[k]; ++i) {
-					const UINT64 index_base_i = mpi_local_index_base_remote_[k][i];
-					const double rho = 1.0/static_cast<double>(P_[k][index_base_i]);
-					send_coeffs[i] = work_[index_base_i] * std::sqrt(1.0 - rho * rho);
-				}
-				
-				#pragma omp single nowait
-				{
-					//======================================
-					// MPI communication of coefficients
-					//======================================
-					alltoallv(
-						send_coeffs,
-						sendrecvcounts,
-						srdispls,
-						recv_coeffs.data(),
-						sendrecvcounts,
-						srdispls,
-						MPI_COMM_WORLD
-					);
-				}
-			
-				// gather all elements from local pairs
-#ifdef SG_USE_NUMA
-				#pragma omp for schedule(static)
-#else
-				#pragma omp for schedule(guided)
-#endif
-				for (UINT64 i = 0; i < mpi_nb_offdiag_local_[k]; ++i) {
-					const UINT64 index_base_i = mpi_local_index_base_local_[k][i];
-					const double rho = 1.0/static_cast<double>(P_[k][index_base_i]);
-					work_local_snapshot[i] = work_[index_base_i] * std::sqrt(1.0 - rho * rho);
-				}
-			
-				#pragma omp barrier
-				
-				//======================================
-				// Perform update of <work> array
-				//======================================
-				
-				// All diagonal terms
-#ifdef SG_USE_NUMA
-				#pragma omp for schedule(static)
-#else
-				#pragma omp for schedule(guided)
-#endif
-				for (UINT64 i=0; i<mpi_dimension_; ++i) {
-					work_[i] *= 1.0/static_cast<double>(P_[k][i]);
-				}
-				
-				// All local off-diagonal terms
-#ifdef SG_USE_NUMA
-				#pragma omp for schedule(static)
-#else
-				#pragma omp for schedule(guided)
-#endif
-				for (UINT64 i=0; i<mpi_nb_offdiag_local_[k]; ++i) {
-					work_[mpi_local_index_friend_local_[k][i]] += work_local_snapshot[i];
-				}
-				
-				// All remote off-diagonal terms
-#ifdef SG_USE_NUMA
-				#pragma omp for schedule(static)
-#else
-				#pragma omp for schedule(guided)
-#endif
-				for (UINT64 i=0; i<mpi_nb_offdiag_remote_[k]; ++i) {
-					work_[mpi_local_index_friend_remote_[k][i]] += recv_coeffs[i];
-				}
-			
-			} // omp parallel section
-			
-		} // for j (operations in a bond)
-		
-		//===========================
-		// UPDATE OF LANCZOS VECTOR
-		//===========================
-		
+	{	
 		const double J = bond.couplingValue;
+
+		if (J == 0) {
+			continue;
+		}
+
+		work_ = w;
+		
+		apply_transpositions(bond.ops);
+		
 		#pragma omp parallel for schedule(static)
-		for (UINT64 i=0; i<mpi_dimension_; ++i) {
+		for (UINT64 i = 0; i < mpi_dimension_; ++i) {
 			u[i] += J * work_[i];
 		}
-		
-		cpt_bond += 1;
-		
-		//std::chrono::time_point<std::chrono::high_resolution_clock> tbond_3 = std::chrono::high_resolution_clock::now();
-		//time(tbond_0, tbond_3, std::string("Total bond"));
-		
-	} // for bond
+	}
 	
 	time(t0, "multiply");
 }
