@@ -34,7 +34,7 @@ public:
     std::pair<std::vector<double>, std::vector<std::vector<double>>> eig();
     
     void log(const std::string& folder = std::string("")) const;
-    void log_eigval(const std::string& folder = std::string("")) const;
+    void log_eigvals(unsigned int k = 1, const std::string& folder = std::string("")) const;
 
 protected:
     std::vector<double> alpha_;

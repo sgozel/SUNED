@@ -155,7 +155,7 @@ Tmatrix lanczos(const type_mult & multiply,
         if (mpi_rank == 0) {
 			if (lp.logging && (cpt % lp.log_freq == 0)) {
 				tmat.log(lp.logging_folder);
-				tmat.log_eigval(lp.logging_folder);
+				tmat.log_eigvals(lp.k, lp.logging_folder);
 			}
 		}
         
@@ -193,7 +193,7 @@ Tmatrix lanczos(const type_mult & multiply,
 		
 		if (lp.logging) {
 			tmat.log(lp.logging_folder);
-			tmat.log_eigval(lp.logging_folder);
+			tmat.log_eigvals(lp.k, lp.logging_folder);
 		}
 	}
     
@@ -343,7 +343,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
             if (mpi_rank==0) {
 				if (lp.logging & (cpt % lp.log_freq == 0)) {
 					tmat.log(lp.logging_folder);
-					tmat.log_eigval(lp.logging_folder);
+					tmat.log_eigvals(lp.k, lp.logging_folder);
 				}
 			}
             
@@ -381,7 +381,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 			
 			if (lp.logging) {
 				tmat.log(lp.logging_folder);
-				tmat.log_eigval(lp.logging_folder);
+				tmat.log_eigvals(lp.k, lp.logging_folder);
 			}
 		}
         first_pass_complete = true;

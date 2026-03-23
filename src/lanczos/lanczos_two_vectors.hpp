@@ -90,7 +90,7 @@ Tmatrix lanczos_two_vectors(const type_mult & multiply,
 		
 		if (lp.logging && (cpt % lp.log_freq == 0)) {
 			tmat.log(lp.logging_folder);
-			tmat.log_eigval(lp.logging_folder);
+			tmat.log_eigvals(lp.k, lp.logging_folder);
 		}
 		
 		cpt += 1;
@@ -103,7 +103,7 @@ Tmatrix lanczos_two_vectors(const type_mult & multiply,
 	verify_convergence(tmat, cpt, lp, isConverged);
     if (lp.logging) {
 		tmat.log(lp.logging_folder);
-		tmat.log_eigval(lp.logging_folder);
+		tmat.log_eigvals(lp.k, lp.logging_folder);
 	}
     
     return tmat;
@@ -153,7 +153,7 @@ Tmatrix lanczos_two_vectors_eigvec(const type_mult & multiply,
 		
 		if (lp.logging && (cpt % lp.log_freq == 0)) {
 			tmat.log(lp.logging_folder);
-			tmat.log_eigval(lp.logging_folder);
+			tmat.log_eigvals(lp.k, lp.logging_folder);
 		}
 		
 		cpt += 1;
@@ -166,7 +166,7 @@ Tmatrix lanczos_two_vectors_eigvec(const type_mult & multiply,
     verify_convergence(tmat, cpt, lp, isConverged);
     if (lp.logging) {
 		tmat.log(lp.logging_folder);
-		tmat.log_eigval(lp.logging_folder);
+		tmat.log_eigvals(lp.k, lp.logging_folder);
 	}
 	
 	//first_pass_complete = true;
