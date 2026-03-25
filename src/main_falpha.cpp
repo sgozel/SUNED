@@ -2,48 +2,37 @@
 
 #include <iostream>
 #include <iomanip>
-#include <fstream>
 #include <string>
+#include <stdexcept>
 
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 #include "version.h"
-#include "./common/datatypes.h"
-#include "./sun/irrep/irrep.h"
-#include "./sun/utils/utils.h"
+#include "common/input_parser.h"
+#include "common/datatypes.h"
+#include "sun/irrep/irrep.h"
+#include "sun/utils/utils.h"
 
 
 int main(int argc, char* argv[])
 {
 	PRINT_SUNED_VERSION
 	
-	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     // READ INPUT PARAMETERS
-    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    std::ifstream inputFileStream;
-    json inputParam;
-
-    try {
-        if(argc==2) {
-            inputFileStream.open(argv[1]);
-            inputFileStream >> inputParam;
-            inputFileStream.close();
-        } else {
-            std::cerr << "No input file provided. Aborting." << std::endl;
-            abort();
-        }
-    }
-    catch (...) {
-        std::cerr << "Caught exception at top level in [main]." << std::endl;
-        abort();
-    }
-
-    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-	if (!inputParam.contains("alpha")) {
-		throw std::runtime_error("Missing alpha in input .json file.");
+    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    
+	json inputParam = parseInputArguments(argc, argv);
+	
+    if (!inputParam.contains("alpha")) {
+		throw std::runtime_error("Missing input parameter alpha. Aborting.");
 	}
+
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+	// RUN CALCULATION
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    
 	sun::Irrep alpha(inputParam["alpha"].get<std::vector<unsigned int>>());
     
     UINT64 falpha = sun::multiplicity(alpha);
@@ -55,7 +44,7 @@ int main(int argc, char* argv[])
     
     double factor = 1e6;
     std::string units = "MB";
-    if (falpha>=1.125e8) {
+    if (falpha >= 1.125e8) {
 		factor *= 1000;
 		units = "GB";
 	}
@@ -68,21 +57,21 @@ int main(int argc, char* argv[])
 	}
     
     double lanczos_space = sizeof(double)*falpha/factor;
-    double vsyt_space = alpha.n()*sizeof(uint8_t)*falpha/factor;
+    double vsyt_space = alpha.n()*sizeof(int8_t)*falpha/factor;
     double bsyt_space = sizeof(UINT64)*falpha/factor;
     unsigned int bsyt_nbits = 64;
     if ((alpha.n()*extent>bsyt_nbits) && (alpha.n()*extent<=128)) {
 		bsyt_nbits = 128;
 		bsyt_space *= 2;
 	} else if (alpha.n()*extent>128) {
-		throw std::runtime_error("Huge problem. Need more than 128 bits on advanced storing strategy.");
+		throw std::runtime_error("Huge system. Need more than 128 bits on advanced storing strategy.");
 	}
     
 	std::cout << ":::::::::::::::::::::::::::::::::::::::::::::::::::" << std::endl;
 	std::cout << "MEMORY ANALYSIS" << std::endl;
 	std::cout << ":::::::::::::::::::::::::::::::::::::::::::::::::::" << std::endl;
 	std::cout << "1 real double-precision Lanczos vector: " << lanczos_space << units << std::endl;
-	std::cout << "SYTs naive storage, uint8_t: " << vsyt_space << units << std::endl;
+	std::cout << "SYTs naive storage, int8_t: " << vsyt_space << units << std::endl;
 	std::cout << "SYTs advanced storage, extent=" << extent << " : " << bsyt_space << units << std::endl;
 	std::cout << ":::::::::::::::::::::::::::::::::::::::::::::::::::" << std::endl;
 	std::cout << "ADVANCED STORAGE STRATEGY" << std::endl;
