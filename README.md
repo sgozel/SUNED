@@ -95,6 +95,8 @@ The rule is that any `--key value` pair provided on the command line will overri
 | `keep_checkpoint` | Keep checkpoint on disk after convergence | false |
 | `dump_matrices` | Write matrices $\tau_{k, k+1}$ to file | false |
 | `matrix_dump_folder_path` | Folder path for $\tau_{k, k+1}$ | `.` |
+| `correlation_refsite` | Reference site $i$ for correlations $P_{i, j}, \ \forall j$ | 0 |
+
 
 ### Example 1 - Use only the `.json` input parameter file
 

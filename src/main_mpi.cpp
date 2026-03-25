@@ -35,18 +35,19 @@ int main(int argc, char* argv[])
 	
 	sun::HBFundMatrixEngineMPI engine(inputParam);
 	
+	// Initialization
 	engine.init();
 	engine.build_matrix_lookups();
 
 	const std::string mvm_method("multiply_mpi_matrix_v1");
 	
-	// Compute eigenvalue
+	// Compute eigenvalues
 	double energy = engine.eigenvalue(mvm_method);
 	if (mpi_rank == 0) {
 		std::cout << "In main: from eigenvalue(" << mvm_method << "), energy = " << energy << std::endl;
 	}
 	
-	/*
+	
 	// Compute eigenpair
 	std::pair<double, sg_vec<double>> eigpair = engine.eigenpair(mvm_method);
     if (mpi_rank == 0) {
@@ -54,8 +55,9 @@ int main(int argc, char* argv[])
 	}
     engine.check_eigvec(eigpair, mvm_method);
     
-    engine.correlations(eigpair.second);
-	*/
+	// Compute correlations
+	const unsigned int refsite = inputParam.value("correlation_refsite", 0);
+    engine.correlations(eigpair.second, refsite);
 	
 	if (mpi_rank == 0) {
 		std::cout << "Leaving main" << std::endl;
