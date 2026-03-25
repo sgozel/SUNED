@@ -65,9 +65,13 @@ export OMP_PROC_BIND=close
 export OMP_PLACES=cores
 ```
 
-## Input parameter file
+## Input parameters
 
-All input parameters must be provided in a ``.json`` file, such as the one provided at the root of the `SUNED` directory. The following table describes the input arguments and provides the eventual default value.
+The following table describes all possible input parameters, with their eventual default values. These parameters can be fed to the executable in two different compatible ways:
+- as a flat `.json` file, such as the one provided at the root of the `SUNED` directory;
+- as command line `--key value` pairs on the call of the executable.
+
+The rule is that any `--key value` pair provided on the command line will override the associated pair in the input `.json` file, if provided. We provide below a few illustrative examples.
 
 | Input | Description | Default value if optional |
 | ------ | ------ | ------ |
@@ -91,6 +95,24 @@ All input parameters must be provided in a ``.json`` file, such as the one provi
 | `keep_checkpoint` | Keep checkpoint on disk after convergence | false |
 | `dump_matrices` | Write matrices $\tau_{k, k+1}$ to file | false |
 | `matrix_dump_folder_path` | Folder path for $\tau_{k, k+1}$ | `.` |
+
+### Example 1 - Use only the `.json` input parameter file
+
+```
+./main data.json
+```
+
+### Example 2 - Use only command-line arguments
+
+```
+./main --N 4 --Ns 10 --alpha '[3,3,2,2] --latticefile latticefiles/HB_chain_10_OBC.lattice --J 1.0
+```
+
+### Example 3 - Mix the best of both worlds
+
+```
+./main data.json --checkpointing true --checkpoint_folder_path /scratch/jobid2026/
+```
 
 ## Lattice files
 

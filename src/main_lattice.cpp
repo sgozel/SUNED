@@ -2,13 +2,14 @@
 
 #include <iostream>
 #include <iomanip>
-#include <fstream>
 #include <string>
+#include <stdexcept>
 
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 #include "version.h"
+#include "common/input_parser.h"
 #include "sun/lattice/lattice.h"
 
 
@@ -16,34 +17,22 @@ int main(int argc, char* argv[])
 {
 	PRINT_SUNED_VERSION
 	
-	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     // READ INPUT PARAMETERS
-    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    std::ifstream inputFileStream;
-    json inputParam;
-
-    try {
-        if(argc==2) {
-            inputFileStream.open(argv[1]);
-            inputFileStream >> inputParam;
-            inputFileStream.close();
-        } else {
-            std::cerr << "No input file provided. Aborting." << std::endl;
-            abort();
-        }
-    }
-    catch (...) {
-        std::cerr << "Caught exception at top level in [main]." << std::endl;
-        abort();
-    }
-
-    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    
+	json inputParam = parseInputArguments(argc, argv);
 	
-	if (!inputParam.contains("latticefile")) {
-		throw std::runtime_error("Missing latticefile in input .json file.");
+    if (!inputParam.contains("latticefile")) {
+		throw std::runtime_error("Missing input parameter latticefile. Aborting.");
 	}
-	std::string latticefile = inputParam["latticefile"];
+    
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+	// RUN CALCULATION
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	
+    std::string latticefile = inputParam["latticefile"];
+
     sun::Lattice lattice;
     
     try {

@@ -1,51 +1,38 @@
 // Copyright 2026 Samuel GOZEL, GNU GPLv3
 
 #include <iostream>
-#include <iomanip>
-#include <fstream>
-#include <string>
+#include <stdexcept>
 
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 #include "version.h"
-#include "./common/datatypes.h"
-#include "./sun/irrep/irrep.h"
-#include "./sun/utils/utils.h"
-#include "./sun/syt/bsyt.h"
-#include "./sun/syt_usage/bsyt_usage.h"
+#include "common/input_parser.h"
+#include "common/datatypes.h"
+#include "sun/irrep/irrep.h"
+#include "sun/utils/utils.h"
+#include "sun/syt/bsyt.h"
+#include "sun/syt_usage/bsyt_usage.h"
 
 
 int main(int argc, char* argv[])
 {
 	PRINT_SUNED_VERSION
 	
-	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     // READ INPUT PARAMETERS
-    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    std::ifstream inputFileStream;
-    json inputParam;
-
-    try {
-        if(argc==2) {
-            inputFileStream.open(argv[1]);
-            inputFileStream >> inputParam;
-            inputFileStream.close();
-        } else {
-            std::cerr << "No input file provided. Aborting." << std::endl;
-            abort();
-        }
-    }
-    catch (...) {
-        std::cerr << "Caught exception at top level in [main]." << std::endl;
-        abort();
-    }
-
-    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-
-	if (!inputParam.contains("alpha")) {
-		throw std::runtime_error("Missing alpha in input .json file.");
+    //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    
+	json inputParam = parseInputArguments(argc, argv);
+	
+    if (!inputParam.contains("alpha")) {
+		throw std::runtime_error("Missing input parameter alpha. Aborting.");
 	}
+
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+	// RUN CALCULATION
+	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
 	sun::Irrep alpha(inputParam["alpha"].get<std::vector<unsigned int>>());
     
     UINT64 falpha = sun::multiplicity(alpha);
@@ -57,7 +44,7 @@ int main(int argc, char* argv[])
     
     std::vector<sun::tbSYT> Y = sun::get_SYT(alpha);
     
-    for (unsigned int i=0; i<Y.size(); ++i) {
+    for (unsigned int i = 0; i < Y.size(); ++i) {
 		Y[i].print(alpha.n());
 	}
     
