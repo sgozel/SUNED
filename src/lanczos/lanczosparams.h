@@ -48,6 +48,7 @@ struct LanczosParams {
 		
 		// Logging
 		logging = true;
+		logging_full = false;
 		logging_folder = std::string("");
 		log_freq = 1;
 		
@@ -92,6 +93,7 @@ struct LanczosParams {
 		
 		// Logging
 		logging = inputParam.value("logging", true);
+		logging_full = inputParam.value("logging_full", false);
 		logging_folder = inputParam.value("logging_folder_path", "");
 		if ((!logging_folder.empty()) && (logging_folder.back()!='/')) {
 			logging_folder += std::string("/");
@@ -170,6 +172,7 @@ struct LanczosParams {
     
     // Logging parameters
     bool logging;
+	bool logging_full;
     unsigned int log_freq;
     std::string logging_folder;
     
