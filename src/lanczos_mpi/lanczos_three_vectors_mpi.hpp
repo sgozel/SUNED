@@ -9,28 +9,7 @@ void lanczos_step(sg_vec<coeff_t> & u,
                   double & alpha, 
                   double & beta, 
                   type_mult multiply)
-{
-	// Non-NUMA aware code
-	/*
-    multiply(v, w); // w <--- H*v
-    
-    double alpha_loc = std::inner_product(v.begin(), v.end(), w.begin(), 0.0); // v^T @ w
-    MPI_Allreduce(&alpha_loc, &alpha, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    
-    axpy<coeff_t>(w, -alpha, v); // w <--- w - alpha*v
-    axpy<coeff_t>(w, -beta, u); // w <--- w - beta*u
-    std::swap(u, v);
-	std::swap(v, w);
-    
-    double beta_loc = std::inner_product(v.begin(), v.end(), v.begin(), 0.0);
-    MPI_Allreduce(&beta_loc, &beta, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    beta = std::sqrt(beta);
-    
-    std::for_each(v.begin(), v.end(), [beta](coeff_t& val) { val /= beta; });
-	*/
-	
-	// NUMA Aware code
-    
+{   
     multiply(v, w); // w <--- H*v
     
     const UINT64 dimension = v.size();
@@ -84,14 +63,6 @@ Tmatrix lanczos(const type_mult & multiply,
 	
     Tmatrix tmat;
     
-    /*
-    // Generate initial Lanczos vector
-    std::vector<coeff_t> v(dimension);
-    lanczos_init_vector<coeff_t>(v, dimension, lp.seed);
-    std::vector<coeff_t> u(dimension, 0.0);
-    std::vector<coeff_t> w(dimension, 0.0);
-    */
-    // NUMA-aware initialization
     // Generate initial Lanczos vector
     sg_vec<coeff_t> v(dimension);
     numa_lanczos_init_vector<coeff_t>(v, dimension, lp.seed);
@@ -157,6 +128,9 @@ Tmatrix lanczos(const type_mult & multiply,
 				tmat.log(lp.logging_folder);
 				tmat.log_eigvals(lp.k, lp.logging_folder);
 			}
+            if (lp.logging_full && (cpt % lp.log_freq == 0)) {
+                tmat.log_full(lp.logging_folder);
+            }
 		}
         
         cpt += 1;
@@ -190,11 +164,13 @@ Tmatrix lanczos(const type_mult & multiply,
     
     if (mpi_rank == 0) {
 		verify_convergence(tmat, cpt, lp, isConverged);
-		
 		if (lp.logging) {
 			tmat.log(lp.logging_folder);
 			tmat.log_eigvals(lp.k, lp.logging_folder);
 		}
+        if (lp.logging_full) {
+                tmat.log_full(lp.logging_folder);
+        }
 	}
     
     if ((lp.checkpointing) && (isConverged) && (!lp.keep_checkpoint)) {
@@ -230,15 +206,7 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 	
 	Tmatrix tmat;
 	
-	/*
 	// Generate initial Lanczos vector
-	std::vector<coeff_t> v(dimension);
-	lanczos_init_vector<coeff_t>(v, dimension, lp.seed);
-    std::vector<coeff_t> u(dimension, 0.0);
-    std::vector<coeff_t> w(dimension, 0.0);
-	*/
-	
-	// NUMA-aware initialization
 	sg_vec<coeff_t> v(dimension);
     numa_lanczos_init_vector<coeff_t>(v, dimension, lp.seed);
     sg_vec<coeff_t> u(dimension);
@@ -345,6 +313,9 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 					tmat.log(lp.logging_folder);
 					tmat.log_eigvals(lp.k, lp.logging_folder);
 				}
+                if (lp.logging_full && (cpt % lp.log_freq == 0)) {
+                    tmat.log_full(lp.logging_folder);
+                }
 			}
             
             cpt += 1;
@@ -378,11 +349,13 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
         
         if (mpi_rank == 0) {
 			verify_convergence(tmat, cpt, lp, isConverged);
-			
 			if (lp.logging) {
 				tmat.log(lp.logging_folder);
 				tmat.log_eigvals(lp.k, lp.logging_folder);
 			}
+            if (lp.logging_full) {
+                tmat.log_full(lp.logging_folder);
+            }
 		}
         first_pass_complete = true;
     }
@@ -398,11 +371,6 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
     // Initialize second pass (only if not restarting from second pass checkpoint)
     if (second_pass_cpt == 0) {
         
-        /*
-        lanczos_init_vector<coeff_t>(v, dimension, lp.seed);
-        std::fill(u.begin(), u.end(), 0.0);
-        std::fill(w.begin(), w.end(), 0.0);
-        */
         numa_lanczos_init_vector<coeff_t>(v, dimension, lp.seed);
         #pragma omp parallel for schedule(static)
 		for (UINT64 i = 0; i < dimension; ++i) {
@@ -411,20 +379,11 @@ Tmatrix lanczos_eigvec(const type_mult & multiply,
 		}
         
         const double gs0 = gs[0];
-        
         eigvec.resize(dimension);
-        //eigvec = v;
         #pragma omp parallel for schedule(static)
 		for (UINT64 i = 0; i < dimension; ++i) {
 			eigvec[i] = v[i] * gs0;
 		}
-        
-        //std::for_each(eigvec.begin(), eigvec.end(), [gs0](coeff_t& el) { el *= gs0; });
-        /*
-        #pragma omp parallel for schedule(static)
-		for (UINT64 i = 0; i < dimension; ++i) {
-			eigvec[i] *= gs0;
-		}*/
         
         beta = 0.0; // not stricly necessary, because u has been re-initialized to 0
         second_pass_cpt += 1;

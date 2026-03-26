@@ -87,6 +87,7 @@ The rule is that any `--key value` pair provided on the command line will overri
 | `dump_eigvec` | Write eigenvector to file | true |
 | `eigvec_folder_path` | Folder path for eigenvector  | `.` |
 | `logging` | Log convergence data during Lanczos | true |
+| `logging_full` | Log full spectrum during Lanczos | false |
 | `logging_folder_path` | Folder path for logging data | `.` |
 | `logging_frequency` | Logging frequency | 1 |
 | `checkpointing` | Checkpoint Lanczos iterations for restarting | false |

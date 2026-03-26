@@ -191,4 +191,23 @@ void Tmatrix::log_eigvals(unsigned int k, const std::string& folder) const
 	}
 }
 
+void Tmatrix::log_full(const std::string& folder) const
+{
+	std::string alleigvals_filename = folder + "alleigvals.log";
+	std::ofstream out(alleigvals_filename);
+	if (!out) {
+		throw std::runtime_error("Cannot open file: " + alleigvals_filename);
+	}
+	
+	out << std::fixed << std::setprecision(16);
+
+	for (const auto& [key, value] : eigvals_) {
+		out << key << ": ";
+		for (unsigned int t = 0; t < value.size()-1; ++t) {
+			out << value[t] << " ";
+		}
+		out << value[value.size()-1] << std::endl;
+	}
 }
+
+} // namespace lanczos/lanczosmpi

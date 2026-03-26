@@ -35,6 +35,7 @@ public:
     
     void log(const std::string& folder = std::string("")) const;
     void log_eigvals(unsigned int k = 1, const std::string& folder = std::string("")) const;
+    void log_full(const std::string& folder = std::string("")) const;
 
 protected:
     std::vector<double> alpha_;
