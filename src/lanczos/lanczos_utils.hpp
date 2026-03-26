@@ -109,45 +109,52 @@ std::vector<double> ritz_value_stabilization(Tmatrix & tmat, unsigned int k)
 bool convergence(Tmatrix & tmat, const LanczosParams & lp)
 {
     bool isConverged = false;
-    unsigned int n = tmat.size();
-    if (n > lp.k) {
-		std::vector<double> residuals = residual(tmat, lp.k);
-		std::vector<double> rvs = ritz_value_stabilization(tmat, lp.k);
-        
-        double tol_residual = lp.tol_residual;
-        double tol_ritz = lp.tol_ritz;
+    const unsigned int n = tmat.size();
+
+	if (n == 1) {
+		return isConverged;
+	}
+
+	const unsigned int k = std::min(lp.k, n-1);
+
+	std::vector<double> residuals = residual(tmat, k);
+	std::vector<double> rvs = ritz_value_stabilization(tmat, k);
+
+	if (lp.logging == true) {
+		// log residuals
+		std::string filename_residuals = lp.logging_folder + "residuals.log";
+		std::ofstream out_residuals(filename_residuals, std::ios::app);
+		if (!out_residuals) {
+			throw std::runtime_error("Cannot open file: " + filename_residuals);
+		}
+		out_residuals << n << ": " << std::flush;
+		out_residuals << std::fixed << std::setprecision(12) << std::scientific;
+		for (size_t i = 0; i < residuals.size(); ++i) {
+			out_residuals << residuals[i] << std::flush << " ";
+		}
+		out_residuals << std::endl;
+		// log rvs
+		std::string filename_rvs = lp.logging_folder + "rvs.log";
+		std::ofstream out_rvs(filename_rvs, std::ios::app);
+		if (!out_rvs) {
+			throw std::runtime_error("Cannot open file: " + filename_rvs);
+		}
+		out_rvs << n << ": " << std::flush;
+		out_rvs << std::fixed << std::setprecision(12) << std::scientific;
+		for (size_t i = 0; i < rvs.size(); ++i) {
+			out_rvs << rvs[i] << std::flush << " ";
+		}
+		out_rvs << std::endl;
+	}
+
+	if (k >= lp.k) {
+		double tol_residual = lp.tol_residual;
+    	double tol_ritz = lp.tol_ritz;
         
         bool b1 = std::all_of(residuals.begin(), residuals.end(), [&tol_residual](const auto& el) { return el<tol_residual; });
         bool b2 = std::all_of(rvs.begin(), rvs.end(), [tol_ritz](const auto& el) {return el<tol_ritz;});
         if (b1 || b2) {
 			isConverged = true;
-		}
-		
-		if (lp.logging == true) {
-			// log residuals
-			std::string filename_residuals = lp.logging_folder + "residuals.log";
-			std::ofstream out_residuals(filename_residuals, std::ios::app);
-			if (!out_residuals) {
-				throw std::runtime_error("Cannot open file: " + filename_residuals);
-			}
-			out_residuals << n << ": " << std::flush;
-			out_residuals << std::fixed << std::setprecision(12) << std::scientific;
-			for (size_t i = 0; i < residuals.size(); ++i) {
-				out_residuals << residuals[i] << std::flush << " ";
-			}
-			out_residuals << std::endl;
-			// log rvs
-			std::string filename_rvs = lp.logging_folder + "rvs.log";
-			std::ofstream out_rvs(filename_rvs, std::ios::app);
-			if (!out_rvs) {
-				throw std::runtime_error("Cannot open file: " + filename_rvs);
-			}
-			out_rvs << n << ": " << std::flush;
-			out_rvs << std::fixed << std::setprecision(12) << std::scientific;
-			for (size_t i = 0; i < rvs.size(); ++i) {
-				out_rvs << rvs[i] << std::flush << " ";
-			}
-			out_rvs << std::endl;
 		}
     }
     return isConverged;

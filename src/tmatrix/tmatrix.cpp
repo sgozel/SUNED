@@ -184,7 +184,9 @@ void Tmatrix::log_eigvals(unsigned int k, const std::string& folder) const
 		out << std::fixed << std::setprecision(16);
 		
 		for (const auto& [key, value] : eigvals_) {
-			out << key << ": " << value[t] << std::endl;
+			if (t < value.size()) {
+				out << key << ": " << value[t] << std::endl;
+			}
 		}
 	}
 }
