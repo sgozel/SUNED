@@ -12,6 +12,12 @@ Some of the features of SU($N$)ED are:
 - on-node parallelization with OpenMP
 - distributed-memory multi-node parallelization with MPI
 
+## Performance illustration
+
+The figure below shows the speedup (strong scaling) on the matrix-vector multiplication (MVM) obtained on a small system (Hamiltonian matrix of dimension 1.26 billion), versus number of nodes. Each node has 192 cores. The Hamiltonian contains 144 bonds (nearest and next nearest neighbor bonds on a 24-sites triangular lattice with periodic boundary conditions). For 1 node, the MVM time is approximately 207 seconds.
+
+![alt text](./media/fig_strong_scaling_triangle24_7665_speedup.png)
+
 ## Requirements
 
 - [CMake] (minimum version 3.21)
@@ -108,7 +114,7 @@ The rule is that any `--key value` pair provided on the command line will overri
 ### Example 2 - Use only command-line arguments
 
 ```
-./main --N 4 --Ns 10 --alpha '[3,3,2,2] --latticefile latticefiles/HB_chain_10_OBC.lattice --J 1.0
+./main --N 4 --Ns 10 --alpha '[3,3,2,2]' --latticefile latticefiles/HB_chain_10_OBC.lattice --J 1.0
 ```
 
 ### Example 3 - Mix the best of both worlds
