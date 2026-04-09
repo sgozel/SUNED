@@ -16,10 +16,22 @@ endif()
 find_package(OpenMP REQUIRED)
 find_package(BLAS REQUIRED)
 
-option(USE_BASIC_SYT "Use basic SYT implementation" OFF)
-option(USE_NUMA "Enable NUMA-aware allocation" OFF)
-option(LANCZOS_TWO_VECTORS "Build ED solver using two Lanczos vectors" OFF)
-option(USE_MPI "Build the MPI target (main_mpi) instead of the default target (main)" OFF)
+option(SUNED_EIGVALS "Build eigenvalue extraction" ON)
+option(SUNED_EIGVECS "Build eigenvector extraction" OFF)
+option(SUNED_CORRELATIONS "Build correlations extraction" OFF)
+option(SUNED_USE_MPI "Build the MPI target (main_mpi) instead of the default target (main)" ON)
+option(SUNED_USE_NUMA "Enable NUMA-aware allocation" OFF)
+option(SUNED_LANCZOS_TWO_VECTORS "Build ED solver using two Lanczos vectors" OFF)
+option(SUNED_USE_VSYT "Use basic vector-SYT implementation" OFF)
+
+if(SUNED_EIGVECS)
+    set(SUNED_EIGVALS OFF)
+endif()
+
+if(SUNED_CORRELATIONS)
+    set(SUNED_EIGVALS OFF)
+    set(SUNED_EIGVECS ON)
+endif()
 
 #=======================================================================
 # SOURCE GIT INFO
@@ -77,7 +89,7 @@ set(COMMON_SOURCES
     ${CMAKE_SOURCE_DIR}/src/sun/heisenberg/hb_engine.cpp
 )
 
-if(USE_MPI)
+if(SUNED_USE_MPI)
     find_package(MPI REQUIRED)
 
     set(MPI_SOURCES
@@ -92,15 +104,15 @@ if(USE_MPI)
 
     target_compile_options(main_mpi PRIVATE ${COMMON_COMPILE_OPTIONS})
     target_compile_definitions(main_mpi PRIVATE SG_USE_MPI)
-    if(USE_BASIC_SYT)
-        target_compile_definitions(main_mpi PRIVATE SG_USE_BASIC_SYT)
+    if(SUNED_EIGVALS)
+        target_compile_definitions(main_mpi PRIVATE SG_EIGVALS)
     endif()
-    if(LANCZOS_EIGVEC)
-        target_compile_definitions(main_mpi PRIVATE SG_LANCZOS_EIGVEC)
-    endif()
-    if(USE_NUMA)
+    if(SUNED_USE_NUMA)
 		target_compile_definitions(main_mpi PRIVATE SG_USE_NUMA)
 	endif()
+    if(SUNED_USE_VSYT)
+        target_compile_definitions(main_mpi PRIVATE SG_USE_VSYT)
+    endif()
 
     target_include_directories(main_mpi PRIVATE 
 							   ${CMAKE_SOURCE_DIR}/src/
@@ -124,18 +136,21 @@ else()
     add_dependencies(main update_version)
 
     target_compile_options(main PRIVATE ${COMMON_COMPILE_OPTIONS})
-    if(USE_BASIC_SYT)
-        target_compile_definitions(main PRIVATE SG_USE_BASIC_SYT)
+    if(SUNED_EIGVALS)
+        target_compile_definitions(main PRIVATE SG_EIGVALS)
     endif()
-    if(LANCZOS_EIGVEC)
-        target_compile_definitions(main PRIVATE SG_LANCZOS_EIGVEC)
+    if(SUNED_EIGVECS)
+        target_compile_definitions(main PRIVATE SG_EIGVECS)
     endif()
-    if(LANCZOS_TWO_VECTORS)
+    if(SUNED_LANCZOS_TWO_VECTORS)
         target_compile_definitions(main PRIVATE SG_LANCZOS_TWO_VECTORS)
     endif()
-    if(USE_NUMA)
+    if(SUNED_USE_NUMA)
 		target_compile_definitions(main PRIVATE SG_USE_NUMA)
 	endif()
+    if(SUNED_USE_VSYT)
+        target_compile_definitions(main PRIVATE SG_USE_VSYT)
+    endif()
 
     target_include_directories(main PRIVATE 
 							   ${CMAKE_SOURCE_DIR}/src/
@@ -191,10 +206,10 @@ add_executable(main_syts
 add_dependencies(main_syts update_version)
 
 target_compile_options(main_syts PRIVATE ${COMMON_COMPILE_OPTIONS})
-if(USE_BASIC_SYT)
-    target_compile_definitions(main_syts PRIVATE SG_USE_BASIC_SYT)
+if(SUNED_USE_VSYT)
+    target_compile_definitions(main_syts PRIVATE SG_USE_VSYT)
 endif()
-if(USE_NUMA)
+if(SUNED_USE_NUMA)
 	target_compile_definitions(main_syts PRIVATE SG_USE_NUMA)
 endif()
 

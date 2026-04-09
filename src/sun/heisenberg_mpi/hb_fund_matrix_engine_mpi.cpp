@@ -15,7 +15,7 @@
 #include "../../common/mpi_utils.hpp"
 #include "../../common/mpi_comm.hpp"
 
-#ifdef SG_USE_BASIC_SYT
+#ifdef SG_USE_VSYT
 #include "../syt_usage/vsyt_usage.h"
 #else
 #include "../syt_usage/bsyt_usage.h"
@@ -114,8 +114,8 @@ void HBFundMatrixEngineMPI::init()
 	
 	const UINT64 from = mpi_rank_ * mpi_bare_dimension_;
 	
-	#ifdef SG_USE_BASIC_SYT
-	std::cerr << "Currently, BASIC_SYT is unsupported on MPI application." << std::endl;
+	#ifdef SG_USE_VSYT
+	std::cerr << "Currently, VSYT is unsupported on MPI application." << std::endl;
 	MPI_Abort(MPI_COMM_WORLD, 1);
 	Y_ = get_SYT<SYTel>(alpha_, from, mpi_dimension_);
 	#else
@@ -182,7 +182,7 @@ void HBFundMatrixEngineMPI::precise_memory_usage() const
 			units = std::string("GB");
 		}
 		
-		#ifdef SG_USE_BASIC_SYT
+		#ifdef SG_USE_VSYT
 		double memAllSYTs = alpha_.n() * sizeof(SYTel) * static_cast<double>(dimension_)/factor;
 		double memLocalSYTs = alpha_.n() * sizeof(SYTel) * static_cast<double>(mpi_dimension_)/factor;
 		#else

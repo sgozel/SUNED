@@ -56,9 +56,9 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DUSE_MPI=${{ matrix.use_mpi }} \
+            -DSUNED_USE_MPI=${{ matrix.use_mpi }} \
             -DMPI_TEST_NP=${{ matrix.mpi_np }} \
-            -DUSE_NUMA=${{ matrix.use_numa }} \
+            -DSUNED_USE_NUMA=${{ matrix.use_numa }} \
             -DBUILD_TESTING=ON
 
       - name: Build

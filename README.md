@@ -56,12 +56,15 @@ The following options can be provided to the cmake command to customize the buil
 
 | Option | Description | Default value |
 | ------ | ------ | ------ |
-| `USE_MPI` | Build MPI implementation for multi-node distributed-memory version | `OFF` |
-| `LANCZOS_TWO_VECTORS` | Build Lanczos with two vectors | `OFF` |
-| `USE_NUMA` | Use NUMA-aware memory allocation of Lanczos vectors | `OFF` |
-| `USE_BASIC_SYT` | Build with basic storage strategy for SYTs | `OFF` |
+| `SUNED_EIGVALS` | Build eigenvalue extraction only (no eigenvector) | `ON` |
+| `SUNED_EIGVECS` | Build eigenvector extraction | `OFF` |
+| `SUNED_CORRELATIONS` | Build correlations extraction | `OFF` |
+| `SUNED_USE_MPI` | Build MPI implementation for multi-node distributed-memory version | `ON` |
+| `SUNED_LANCZOS_TWO_VECTORS` | Build Lanczos with two vectors | `OFF` |
+| `SUNED_USE_NUMA` | Use NUMA-aware memory allocation of Lanczos vectors | `OFF` |
+| `SUNED_USE_VSYT` | Build with basic storage strategy for SYTs | `OFF` |
 
-`USE_BASIC_SYT=ON` leads to a larger memory usage and a less efficient (slower) search across SYTs. It is also slower when applying transpositions on SYTs. It is thus not recommended for production runs.
+`SUNED_USE_VSYT=ON` leads to a larger memory usage and a less efficient (slower) search across SYTs. It is also slower when applying transpositions on SYTs. It is thus not recommended for production runs.
 
 
 Before executing the code, set the OMP variables:
