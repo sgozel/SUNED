@@ -14,9 +14,11 @@ Some of the features of SU($N$)ED are:
 
 ## Performance illustration
 
-The figure below shows the speedup (strong scaling) on the matrix-vector multiplication (MVM) obtained on a small system (Hamiltonian matrix of dimension 1.26 billion), versus number of nodes. Each node has 192 cores. The Hamiltonian contains 144 bonds (nearest and next nearest neighbor bonds on a 24-sites triangular lattice with periodic boundary conditions). For 1 node, the MVM time is approximately 207 seconds.
+The figure below shows the speedup (strong scaling) on the matrix-vector multiplication (MVM) obtained on a small system (Hamiltonian matrix of dimension 1.26 billion), versus number of nodes. Each node has 192 cores. For 1 node, the MVM time is approximately 207 seconds.
 
 ![alt text](./media/fig_strong_scaling_triangle24_7665_speedup.png)
+
+*Details: This plot shows the speedup on the MVM time for the SU(4) Heisenberg model with nearest and next-nearest neighbor interactions on a triangular lattice with 24 sites and periodic boundary conditions (simulation torus: $`\bf{t}_1 = \bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 5\bf{a}_1 - 4\bf{a}_2`$), in the target adjoint irreducible representation with Young diagram $`[7, 6, 6, 5]`$. The dimension of this sector is 1.26 billion. The Hamiltonian is made of 144 bonds ($`2 \times 24 \times 3`$), and the total number of "elementary" operators $`\tau_{k, k+1}`$ to apply in each MVM is 1784. This is obtained thanks to a lattice graph optimization (Minimum Linear Arrangement Problem), see [lattice_optimizer]. Following the topology of the AMD Epyc 9654 socket, we bind each die of a node to a MPI process, thus 8 cores per MPI process, 24 processes per node. All cores on a die can work in parallel on their section of the Hilbert space, which is memory-distributed among all processes. However, memory bandwidth limits the on-die parallel efficiency.* 
 
 ## Requirements
 
@@ -241,3 +243,4 @@ Samuel Gozel
 [CMake]: <https://cmake.org/>
 [nlohmann/json]: <https://github.com/nlohmann/json>
 [GoogleTests]: <https://github.com/google/googletest>
+[lattice_optimizer]: <https://github.com/sgozel/lattice_optimizer>
