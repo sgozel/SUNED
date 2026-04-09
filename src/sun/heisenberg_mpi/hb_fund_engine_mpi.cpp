@@ -9,7 +9,7 @@
 #include "../../common/time.h"
 #include "../utils/utils.h"
 
-#ifdef SG_USE_BASIC_SYT
+#ifdef SG_USE_VSYT
 #include "../syt_usage/vsyt_usage.h"
 #else
 #include "../syt_usage/bsyt_usage.h"
@@ -26,7 +26,7 @@ HBFundEngineMPI::HBFundEngineMPI(nlohmann::json const& inputParam)
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	}
 	
-	#ifndef SG_USE_BASIC_SYT
+	#ifndef SG_USE_VSYT
 	tbSYT::check(N_, alpha_.n());
 	#endif
 }
@@ -43,7 +43,7 @@ void HBFundEngineMPI::init()
 	}
 	
 	// each MPI process generates the entire list of SYTs
-	#ifdef SG_USE_BASIC_SYT
+	#ifdef SG_USE_VSYT
 	Y_ = get_SYT<SYTel>(alpha_);
 	#else
 	Y_ = get_SYT(alpha_);
@@ -60,7 +60,7 @@ void HBFundEngineMPI::init()
 			F = std::string("GB");
 		}
 		
-		#ifdef SG_USE_BASIC_SYT
+		#ifdef SG_USE_VSYT
 		std::cout << "SYTs Memory: " << alpha_.n()*sizeof(Y_[0][0])*((double)Y_.size()/factor) << F << std::endl;
 		#else
 		std::cout << "SYTs Memory: " << sizeof(Y_[0])*((double)Y_.size()/factor) << F << std::endl;

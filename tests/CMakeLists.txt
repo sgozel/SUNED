@@ -20,7 +20,7 @@ configure_file(testdata/TEST_DATA_ENERGY_SU3.json TEST_DATA_ENERGY_SU3.json)
 
 include(GoogleTest)
 
-if(USE_MPI)
+if(SUNED_USE_MPI)
 
 	#=======================================================================
 	# MPI PROJECT SOURCES
@@ -56,7 +56,7 @@ if(USE_MPI)
 							   ${CMAKE_CURRENT_SOURCE_DIR})
 
     target_compile_definitions(tests_mpi PRIVATE SG_USE_MPI)
-    if(USE_NUMA)
+    if(SUNED_USE_NUMA)
 		target_compile_definitions(tests_mpi PRIVATE SG_USE_NUMA)
 	endif()
 
@@ -119,7 +119,7 @@ else()
 							   ${CMAKE_BINARY_DIR}/src/version
 							   ${CMAKE_CURRENT_SOURCE_DIR})
 	
-	if(USE_NUMA)
+	if(SUNED_USE_NUMA)
 		target_compile_definitions(tests_common PRIVATE SG_USE_NUMA)
 	endif()
 
@@ -165,7 +165,7 @@ else()
 							   ${CMAKE_BINARY_DIR}/src/version
 							   ${CMAKE_CURRENT_SOURCE_DIR})
 	
-	if(USE_NUMA)
+	if(SUNED_USE_NUMA)
 		target_compile_definitions(tests_nonmpi PRIVATE SG_USE_NUMA)
 	endif()
 	

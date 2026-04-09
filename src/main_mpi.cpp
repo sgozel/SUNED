@@ -41,20 +41,24 @@ int main(int argc, char* argv[])
 
 	const std::string mvm_method("multiply_mpi_matrix_v1");
 	
+	#ifdef SG_EIGVALS
 	// Compute eigenvalues
 	double energy = engine.eigenvalue(mvm_method);
 	if (mpi_rank == 0) {
 		std::cout << "In main: from eigenvalue(" << mvm_method << "), energy = " << energy << std::endl;
 	}
+	#endif
 	
-	
+	#ifdef SG_EIGVECS
 	// Compute eigenpair
 	std::pair<double, sg_vec<double>> eigpair = engine.eigenpair(mvm_method);
     if (mpi_rank == 0) {
 		std::cout << "In main: from eigenpair(), energy = " << eigpair.first << std::endl;
 	}
     engine.check_eigvec(eigpair, mvm_method);
-    
+    #endif
+
+	#ifdef SG_CORRELATIONS
 	// Compute correlations
 	const unsigned int refsite = inputParam.value("correlation_refsite", 0);
     engine.correlations(eigpair.second, refsite);
@@ -62,6 +66,7 @@ int main(int argc, char* argv[])
 	if (mpi_rank == 0) {
 		std::cout << "Leaving main" << std::endl;
 	}
+	#endif
 	
 	MPI_Finalize();
 	

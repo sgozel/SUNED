@@ -5,7 +5,7 @@
 
 #include "hb_engine.h"
 
-#ifdef SG_USE_BASIC_SYT
+#ifdef SG_USE_VSYT
 #include "../syt/vsyt.h"
 #else
 #include "../syt/bsyt.h"
@@ -15,7 +15,7 @@
 
 namespace sun {
 
-#ifdef SG_USE_BASIC_SYT
+#ifdef SG_USE_VSYT
 typedef int8_t SYTel;
 typedef Int8vSYT SYT;
 #else

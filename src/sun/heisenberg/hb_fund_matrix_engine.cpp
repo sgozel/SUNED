@@ -14,7 +14,7 @@
 #include "../utils/utils.h"
 
 
-#ifdef SG_USE_BASIC_SYT
+#ifdef SG_USE_VSYT
 #include "../syt_usage/vsyt_usage.h"
 #else
 #include "../syt_usage/bsyt_usage.h"

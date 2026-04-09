@@ -31,16 +31,20 @@ int main(int argc, char* argv[])
     engine.init();
     engine.build_matrix_lookups();
     
+    const std::string mvm_method("multiply_v1_openmp");
+
+    #ifdef SG_EIGVALS
     // Compute eigenvalue
-    double energy = engine.eigenvalue("multiply_v1_openmp");
+    double energy = engine.eigenvalue(mvm_method);
     std::cout << "In main: from eigenvalue(), energy = " << energy << std::endl;
-    
-    /*
+    #endif
+
+    #ifdef SG_EIGVECS
     // Compute eigenpair
-    std::pair<double, sg_vec<double>> eigpair = engine.eigenpair("multiply_v1_openmp");
+    std::pair<double, sg_vec<double>> eigpair = engine.eigenpair(mvm_method);
     std::cout << "In main: from eigenpair(), energy = " << eigpair.first << std::endl;
-    engine.check_eigvec(eigpair, "multiply_v1_openmp");
-	*/
+    engine.check_eigvec(eigpair, mvm_method);
+	#endif
 	//::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	
 	std::cout << "leaving main" << std::endl;
