@@ -194,6 +194,10 @@ The coupling name(s) must then be provided in the `.json` file with their numeri
 ...
 ```
 
+Note that in the case of the 5-sites periodic chain above, we did not number the sites in a sequential way when turning around the ring. This is a general optimization. Indeed, the algorithmic complexity of this ED algorithm is linear in the total number of elementary operators $`\tau_{k, k+1}`$ (adjacent transpositions) to apply, which we denote by $`\mathcal{C}`$. For a given lattice, it is thus useful to find a numbering of the sites which reduces $`\mathcal{C}`$, and, ideally, minimizes it. This problem is known as the *Minimum Linear Arrangement Problem*, a well-known NP-hard problem in combinatorial mathematics. We have thus developed [lattice_optimizer], a C++ application which takes a $`N_s`$-sites lattice (sites + bonds) file in input and finds a renumbering $`\sigma \in S_{N_s}`$ of the sites which decreases $`\mathcal{C}`$, and, hopefully, minimizes it given the relatively small number of sites adressable with ED.
+
+[lattice_optimizer] also provides a convenient Python script for plotting a lattice.
+
 ## Tests
 
 To compile tests:
