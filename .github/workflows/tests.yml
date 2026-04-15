@@ -52,6 +52,15 @@ jobs:
             sudo apt-get install -y libopenmpi-dev
           fi
 
+      - name: Lib versions
+        run: |
+          cmake --version
+          g++ --version
+          dpkg -l libopenblas-dev | grep -E "^ii"
+          mpirun --version || true
+          dpkg -l libopenmpi-dev 2>/dev/null | grep openmpi || true
+          dpkg -l libgtest-dev | grep -E "^ii"
+
       - name: Configure
         run: |
           cmake -B build \
