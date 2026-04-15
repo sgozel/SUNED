@@ -76,7 +76,8 @@ if(SUNED_USE_MPI)
 		ENVIRONMENT "OMP_NUM_THREADS=1"
 	)
 	
-	gtest_discover_tests(tests_mpi)
+	# do not use gtest_discover_tests, which shadows the add_test with the mpirun command
+	#gtest_discover_tests(tests_mpi)
 	
 else()
 	
