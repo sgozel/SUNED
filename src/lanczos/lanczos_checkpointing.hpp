@@ -237,28 +237,63 @@ LoadedCheckpoint<coeff_t> load_checkpoint(const std::string& filename)
     std::string backup_file = filename + ".old";
     LoadedCheckpoint<coeff_t> checkpoint;
     
-    bool loaded = false;
+    #ifdef SG_USE_MPI
+	int rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    #endif
+
+    int loaded = 0; // use int instead of bool for simplicity in MPI case
     try {
         load_checkpoint(filename, checkpoint);
-        std::cout << "Successfully loaded checkpoint" << std::endl;
-        loaded = true;
+        loaded = 1;
     } catch (const std::exception& e1) {
-        std::cerr << "Failed to load main checkpoint: " << e1.what() << std::endl;
+        #ifdef SG_USE_MPI
+        const std::string rankstr("rank " + std::to_string(rank) + ": ");
+        #else
+        const std::string rankstr("");
+        #endif
+        std::cerr << rankstr << "Failed to load main checkpoint: " << e1.what() << std::endl;
         if (checkpoint_exists(backup_file)) {
-            std::cout << "Attempting to load backup checkpoint ..." << std::endl;
+            std::cout << rankstr << "Attempting to load backup checkpoint ..." << std::endl;
             try {
                 load_checkpoint(backup_file, checkpoint);
-                loaded = true;
-                std::cout << "Successfully loaded backup checkpoint" << std::endl;
+                loaded = 1;
+                std::cout << rankstr << "Successfully loaded backup checkpoint" << std::endl;
                 std::remove(filename.c_str());
                 std::rename(backup_file.c_str(), filename.c_str());
             } catch (const std::exception& e2) {
-                std::cerr << "Failed to load backup checkpoint: " << e2.what() << std::endl;
+                std::cerr << rankstr << "Failed to load backup checkpoint: " << e2.what() << std::endl;
             }
         }
     }
+
+    #ifdef SG_USE_MPI
+    // Check that all processes successfully loaded their checkpoint
+    int global_loaded;
+    MPI_Allreduce(&loaded,        // sendbuf
+				  &global_loaded, // recvbuf
+				  1,              // count
+				  MPI_INT,        // datatype
+				  MPI_LAND,       // MPI_Op
+				  MPI_COMM_WORLD
+    );
+    if (global_loaded == 1) {
+        if (rank == 0) {
+            std::cout << "Successfully loaded checkpoint" << std::endl;
+        }
+    } else {
+        if (rank == 0) {
+            std::cerr << "At least one process failed loading its checkpoint. Aborting" << std::endl;
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+    }
+    #else
+    if (loaded == 1) {
+        std::cout << "Successfully loaded checkpoint" << std::endl;
+    }
+    #endif
     
-    if (!loaded) {
+    if (loaded == 0) {
         throw std::runtime_error("Failed to load any valid checkpoint file");
     }
     
