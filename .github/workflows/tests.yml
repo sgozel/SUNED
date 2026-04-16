@@ -74,4 +74,58 @@ jobs:
         run: cmake --build build --parallel
 
       - name: Run tests
-        run: ctest --verbose --output-on-failure --test-dir build
+        run: ctest --verbose --output-on-failure --test-dir build -E "^tests_duality"
+  
+  test_store_columns:
+    name: STORE_COLUMNS
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "MPI"
+            use_mpi: ON
+            mpi_np: 2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            libblas-dev \
+            libgtest-dev \
+            libopenblas-dev \
+            googletest
+          if [ "${{ matrix.use_mpi }}" = "ON" ]; then
+            sudo apt-get install -y libopenmpi-dev
+          fi
+
+      - name: Lib versions
+        run: |
+          cmake --version
+          g++ --version
+          dpkg -l libopenblas-dev | grep -E "^ii"
+          mpirun --version || true
+          dpkg -l libopenmpi-dev 2>/dev/null | grep openmpi || true
+          dpkg -l libgtest-dev | grep -E "^ii"
+
+      - name: Configure
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSUNED_USE_MPI=${{ matrix.use_mpi }} \
+            -DSUNED_STORE_COLUMNS=ON \
+            -DSUNED_BSYT_NBITS=1 \
+            -DSUNED_BSYT_CONTAINER_SIZE=2 \
+            -DMPI_TEST_NP=${{ matrix.mpi_np }} \
+            -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --parallel --target tests_duality
+
+      - name: Run tests
+        run: ctest --verbose --output-on-failure --test-dir build -R "^tests_duality"

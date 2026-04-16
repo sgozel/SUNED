@@ -2,6 +2,8 @@
 # IMPORT LATTICE FILES
 #=======================================================================
 
+configure_file(../latticefiles/HB_chain_10_OBC.lattice HB_chain_10_OBC.lattice)
+configure_file(../latticefiles/HB_chain_10_PBC.lattice HB_chain_10_PBC.lattice)
 configure_file(../latticefiles/HB_chain_12_OBC.lattice HB_chain_12_OBC.lattice)
 configure_file(../latticefiles/HB_chain_12_PBC.lattice HB_chain_12_PBC.lattice)
 configure_file(../latticefiles/HB_chain_15_OBC.lattice HB_chain_15_OBC.lattice)
@@ -13,6 +15,7 @@ configure_file(../latticefiles/HB_chain_15_PBC.lattice HB_chain_15_PBC.lattice)
 
 configure_file(testdata/TEST_DATA_MULTIPLICITY.json TEST_DATA_MULTIPLICITY.json)
 configure_file(testdata/TEST_DATA_ENERGY_SU3.json TEST_DATA_ENERGY_SU3.json)
+configure_file(testdata/TEST_DATA_ENERGY_SU5.json TEST_DATA_ENERGY_SU5.json)
 
 #=======================================================================
 # MPI/NON-MPI DEDICATED TESTS
@@ -41,9 +44,14 @@ if(SUNED_USE_MPI)
 		main_mpi_test.cpp
         test_energy_mpi.cpp
     )
+
+	set(MPI_TEST_DUALITY_SOURCES
+		main_mpi_test.cpp
+		test_energy_mpi_duality.cpp
+	)
 	
 	#=======================================================================
-	# MPI TEST EXECUTABLE
+	# MPI TEST EXECUTABLE - MAIN TESTS
 	#=======================================================================
 	
     add_executable(tests_mpi ${MPI_TEST_SOURCES} ${MPI_PROJECT_SOURCES})
@@ -80,6 +88,53 @@ if(SUNED_USE_MPI)
 		COMMAND mpirun --oversubscribe -np ${MPI_TEST_NP} $<TARGET_FILE:tests_mpi>
 	)
 	set_tests_properties(tests_mpi PROPERTIES
+		ENVIRONMENT "OMP_NUM_THREADS=1"
+	)
+	
+	# do not use gtest_discover_tests, which shadows the add_test with the mpirun command
+	#gtest_discover_tests(tests_mpi)
+
+	#=======================================================================
+	# MPI TEST EXECUTABLE - DUALITY TESTS
+	#=======================================================================
+	
+    add_executable(tests_duality ${MPI_TEST_DUALITY_SOURCES} ${MPI_PROJECT_SOURCES})
+
+	add_dependencies(tests_duality update_version)
+
+    target_include_directories(tests_duality PRIVATE 
+							   ${CMAKE_SOURCE_DIR}/src
+							   ${CMAKE_BINARY_DIR}/src/version
+							   ${CMAKE_CURRENT_SOURCE_DIR})
+
+    target_compile_definitions(tests_duality PRIVATE SG_USE_MPI)
+    if(SUNED_USE_NUMA)
+		target_compile_definitions(tests_duality PRIVATE SG_USE_NUMA)
+	endif()
+	if(SUNED_STORE_COLUMNS)
+		target_compile_definitions(tests_duality PRIVATE SG_STORE_COLUMNS)
+	endif()
+	if(SUNED_USE_VSYT)
+		message(FATAL_ERROR "Currently, we do not support VSYT in MPI code.")
+        #target_compile_definitions(tests_duality PRIVATE SG_USE_VSYT)
+    else()
+        target_compile_definitions(tests_duality PRIVATE SG_BSYT_NBITS=${SUNED_BSYT_NBITS})
+        target_compile_definitions(tests_duality PRIVATE SG_BSYT_CONTAINER_SIZE=${SUNED_BSYT_CONTAINER_SIZE})
+    endif()
+
+    target_link_libraries(tests_duality PRIVATE
+        GTest::gtest
+        BLAS::BLAS
+        OpenMP::OpenMP_CXX
+        MPI::MPI_CXX
+    )
+    
+    set(MPI_TEST_NP 2 CACHE STRING "Number of MPI processes for tests")
+	add_test(
+		NAME tests_duality
+		COMMAND mpirun --oversubscribe -np ${MPI_TEST_NP} $<TARGET_FILE:tests_duality>
+	)
+	set_tests_properties(tests_duality PROPERTIES
 		ENVIRONMENT "OMP_NUM_THREADS=1"
 	)
 	

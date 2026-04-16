@@ -11,9 +11,14 @@
 #include <mpi.h>
 
 #include "../utils/utils.h"
+#include "../utils/young_factor.h"
 #include "../../common/time.h"
 #include "../../common/mpi_utils.hpp"
 #include "../../common/mpi_comm.hpp"
+
+#ifdef SG_STORE_COLUMNS
+#include "../irrep/irrep.h"
+#endif
 
 #ifdef SG_USE_VSYT
 #include "../syt_usage/vsyt_usage.h"
@@ -85,6 +90,10 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 	
 	if (mpi_rank_==0) {
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+#ifdef SG_STORE_COLUMNS
+		std::cout << "WARNING: Storing SYTs as columns" << std::endl;
+		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+#endif
 		std::cout << "N = " << N_ << std::endl;
 		std::cout << "Ns = " << Ns_ << std::endl;
 		std::cout << "Target irrep: " << std::endl;
@@ -114,13 +123,24 @@ void HBFundMatrixEngineMPI::init()
 	
 	const UINT64 from = mpi_rank_ * mpi_bare_dimension_;
 	
-	#ifdef SG_USE_VSYT
+#ifdef SG_STORE_COLUMNS
+#ifdef SG_USE_VSYT
 	std::cerr << "Currently, VSYT is unsupported on MPI application." << std::endl;
 	MPI_Abort(MPI_COMM_WORLD, 1);
 	Y_ = get_SYT<SYTel>(alpha_, from, mpi_dimension_);
-	#else
+#else
+	const Irrep alphaT(alpha_.transpose());
+	Y_ = get_SYT(alphaT, from, mpi_dimension_);
+#endif
+#else
+#ifdef SG_USE_VSYT
+	std::cerr << "Currently, VSYT is unsupported on MPI application." << std::endl;
+	MPI_Abort(MPI_COMM_WORLD, 1);
+	Y_ = get_SYT<SYTel>(alpha_, from, mpi_dimension_);
+#else
 	Y_ = get_SYT(alpha_, from, mpi_dimension_);
-	#endif
+#endif
+#endif
 	
 	// Each process sends its Y_[0] to all processes
 	const SYT_value_t first_val = Y_[0].value();
@@ -182,13 +202,13 @@ void HBFundMatrixEngineMPI::precise_memory_usage() const
 			units = std::string("GB");
 		}
 		
-		#ifdef SG_USE_VSYT
+#ifdef SG_USE_VSYT
 		double memAllSYTs = alpha_.n() * sizeof(SYTel) * static_cast<double>(dimension_)/factor;
 		double memLocalSYTs = alpha_.n() * sizeof(SYTel) * static_cast<double>(mpi_dimension_)/factor;
-		#else
+#else
 		double memAllSYTs = sizeof(SYT_value_t) * static_cast<double>(dimension_)/factor;
 		double memLocalSYTs = sizeof(SYT_value_t) * static_cast<double>(mpi_dimension_)/factor;
-		#endif
+#endif
 		
 		double memLanczos = 3 * sizeof(double) * static_cast<double>(mpi_dimension_)/factor;
 		double memWorkArray = sizeof(double) * static_cast<double>(mpi_dimension_)/factor;
@@ -252,7 +272,6 @@ void HBFundMatrixEngineMPI::precise_memory_usage() const
 }
 
 
-
 void HBFundMatrixEngineMPI::build_matrix_lookups()
 {	
 	std::chrono::time_point<std::chrono::high_resolution_clock> t_start = std::chrono::high_resolution_clock::now();
@@ -294,11 +313,11 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 			const int rowkk = Y_[i].get(k+1);
 			
 			if (rowk == rowkk) {
-				P_[k][i] = 1;
+				P_[k][i] = YOUNG_FACTOR;
 			} else {
 				const std::pair<int, int> cy = get_column_k_k_plus_one(Y_[i], k);
 				if (cy.first == cy.second) {
-					P_[k][i] = -1;
+					P_[k][i] = -YOUNG_FACTOR;
 				} else {		
 					SYT yfriend = Y_[i];
 					yfriend.exchange(k, k+1);
@@ -345,7 +364,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 						// count -1 for each step made upwards or to the right
 						const typePk ax = cy.first - rowk - cy.second + rowkk;
 						
-						P_[k][i] = -ax;
+						P_[k][i] = -ax * YOUNG_FACTOR;
 						
 					} else {
 						// register a request for an index extraction on a friend rank
@@ -496,7 +515,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 				const int rowk  = yi.get(k);
 				const int rowkk = yi.get(k+1);
 				const typePk ax = cy.first - rowk - cy.second + rowkk; // axial distance from k to k+1
-				P_[k][local_i] = -ax;
+				P_[k][local_i] = -ax * YOUNG_FACTOR;
 			}
 		}
 		

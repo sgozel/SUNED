@@ -13,6 +13,7 @@
 
 #include "../syt/vsyt.h"
 #include "../irrep/irrep.h"
+#include "../utils/young_factor.h"
 #include "../utils/utils.h"
 #include "../../common/datatypes.h"
 
