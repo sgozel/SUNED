@@ -50,11 +50,16 @@ You can then simply invoke the `Makefile` at the root of the directory:
 ```
 make
 ```
-This will build several executables ({MPI, non-MPI} $\times$ {NUMA-aware, non-NUMA-aware}).
+This will build the MPI executables for energy eigenvalues, eigenpairs and correlations with some predefined configuration (see below). Alternatively, you can configure you own specific build using the usual CMake commands:
+```
+cmake -S . -build build/release_special_build/ -DCMAKE_BUILD_TYPE=Release <SUNED OPTIONS>
+cmake --build build/release_special_build/
+```
+where the `<SUNED OPTIONS>` are described in the next section.
 
 ## Options
 
-The following options can be provided to the cmake command to customize the build:
+The following options can be provided to the cmake command at configure time to customize the build:
 
 | Option | Description | Default value |
 | ------ | ------ | ------ |
@@ -64,9 +69,12 @@ The following options can be provided to the cmake command to customize the buil
 | `SUNED_USE_MPI` | Build MPI implementation for multi-node distributed-memory version | `ON` |
 | `SUNED_LANCZOS_TWO_VECTORS` | Build Lanczos with two vectors | `OFF` |
 | `SUNED_USE_NUMA` | Use NUMA-aware memory allocation of Lanczos vectors | `OFF` |
+| `SUNED_STORE_COLUMNS` | Store column-SYTs instead of rows-SYTs | `OFF` |
 | `SUNED_USE_VSYT` | Build with basic storage strategy for SYTs | `OFF` |
+| `SUNED_BSYT_NBITS` | Number of bits per box for `bSYT` | 2 |
+| `SUNED_BSYT_CONTAINER_SIZE` | Number of bytes per SYT for `bSYT` | 8 |
 
-`SUNED_USE_VSYT=ON` leads to a larger memory usage and a less efficient (slower) search across SYTs. It is also slower when applying transpositions on SYTs. It is thus not recommended for production runs.
+`SUNED_USE_VSYT=ON` leads to a larger memory usage and a less efficient (slower) search across SYTs. It is also slower when applying transpositions on SYTs. It is thus not recommended for production runs. See [this page](src/sun/syt/README.md) for more details.
 
 
 Before executing the code, set the OMP variables:
@@ -78,7 +86,7 @@ export OMP_PLACES=cores
 
 ## Input parameters
 
-The following table describes all possible input parameters, with their eventual default values. These parameters can be fed to the executable in two different compatible ways:
+The following table describes all possible input parameters to the `SUNED` executables, with their eventual default values. These parameters can be fed to the executables in two different compatible ways:
 - as a flat `.json` file, such as the one provided at the root of the `SUNED` directory;
 - as command line `--key value` pairs on the call of the executable.
 
@@ -107,26 +115,28 @@ The rule is that any `--key value` pair provided on the command line will overri
 | `keep_checkpoint` | Keep checkpoint on disk after convergence | false |
 | `dump_matrices` | Write matrices $\tau_{k, k+1}$ to file | false |
 | `matrix_dump_folder_path` | Folder path for $\tau_{k, k+1}$ | `.` |
-| `correlation_refsite` | Reference site $i$ for correlations $P_{i, j}, \ \forall j$ | 0 |
+| `correlation_refsite` | Reference site $i$ for correlations $`\left<P_{i, j}\right>, \ \forall j`$ | 0 |
 
 
 ### Example 1 - Use only the `.json` input parameter file
 
 ```
-./main data.json
+/path/to/main data.json
 ```
 
 ### Example 2 - Use only command-line arguments
 
 ```
-./main --N 4 --Ns 10 --alpha '[3,3,2,2]' --latticefile latticefiles/HB_chain_10_OBC.lattice --J 1.0
+/path/to/main --N 4 --Ns 10 --alpha '[3,3,2,2]' --latticefile /path/to/latticefiles/HB_chain_10_OBC.lattice --J 1.0
 ```
+This is the simplest minimal example for running a job with `SUNED`.
 
 ### Example 3 - Mix the best of both worlds
 
 ```
-./main data.json --checkpointing true --checkpoint_folder_path /scratch/jobid2026/
+/path/to/main data.json --checkpointing true --checkpoint_folder_path /scratch/jobid2026/
 ```
+This is the most useful when executing jobs on a cluster, in particular for job arrays.
 
 ## Lattice files
 

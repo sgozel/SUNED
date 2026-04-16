@@ -212,12 +212,14 @@ void develop_consecutive_number(const Irrep & alpha,
         const int rowk = y.get(k);
         const int rowkk = y.get(k+1);
         
-        if (rowk!=rowkk) {
+        if (rowk == rowkk) {
+            coeffdev_out[i] *= YOUNG_FACTOR;
+        } else {
 			std::pair<int, int> cy = get_column_k_k_plus_one(y, k);
-            if (cy.first==cy.second) {
-                coeffdev_out[i] *= (-1.0);
+            if (cy.first == cy.second) {
+                coeffdev_out[i] *= -YOUNG_FACTOR;
             } else {
-                double rho = 1.0/static_cast<double>( rowk + cy.second - cy.first - rowkk ); // we have introduced the minus sign therein
+                double rho = 1.0/static_cast<double>( YOUNG_FACTOR * (rowk + cy.second - cy.first - rowkk) ); // we have introduced the minus sign therein
                 ydev_out[count] = y;
                 ydev_out[count].exchange(k, k+1);
                 coeffdev_out[count] = coeffdev_out[i] * std::sqrt(1.0-rho*rho);
@@ -248,12 +250,14 @@ void develop_consecutive_number_inplace(const Irrep & alpha,
         const int rowk = y.get(k);
         const int rowkk = y.get(k+1);
         
-        if (rowk!=rowkk) {
+        if (rowk == rowkk) {
+            coeffdev[i] *= YOUNG_FACTOR;
+        } else {
 			const std::pair<int, int> cy = get_column_k_k_plus_one(y, k);
-			if (cy.first==cy.second) {
-                coeffdev[i] *= (-1.0);
+			if (cy.first == cy.second) {
+                coeffdev[i] *= -YOUNG_FACTOR;
             } else {
-                double rho = 1.0/static_cast<double>( rowk + cy.second - cy.first - rowkk ); // we have introduced the minus sign therein
+                double rho = 1.0/static_cast<double>( YOUNG_FACTOR * (rowk + cy.second - cy.first - rowkk) ); // we have introduced the minus sign therein
                 ydev.push_back(y);
                 ydev[count].exchange(k, k+1);
                 coeffdev.push_back(coeffdev[i] * std::sqrt(1.0-rho*rho));

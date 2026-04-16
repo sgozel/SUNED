@@ -1,7 +1,7 @@
 // Copyright 2026 Samuel GOZEL, GNU GPLv3
 
-#ifndef DATATYPES_H
-#define DATATYPES_H
+#ifndef SUNED_DATATYPES_H
+#define SUNED_DATATYPES_H
 
 #include <cstdint>
 

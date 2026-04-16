@@ -4,10 +4,15 @@
 
 #include <iostream>
 #include <chrono>
+#include <stdexcept>
 #include <mpi.h>
 
 #include "../../common/time.h"
 #include "../utils/utils.h"
+
+#ifdef SG_STORE_COLUMNS
+#include "../irrep/irrep.h"
+#endif
 
 #ifdef SG_USE_VSYT
 #include "../syt_usage/vsyt_usage.h"
@@ -25,10 +30,23 @@ HBFundEngineMPI::HBFundEngineMPI(nlohmann::json const& inputParam)
 		std::cerr << "ERROR: For the fundamental irrep at each site, Ns must match the number of boxes in alpha." << std::endl;
 		MPI_Abort(MPI_COMM_WORLD, 1);
 	}
-	
-	#ifndef SG_USE_VSYT
-	tbSYT::check(N_, alpha_.n());
-	#endif
+
+#ifndef SG_USE_VSYT
+	if (mpi_rank_ == 0) {
+		try {
+#ifdef SG_STORE_COLUMNS
+			tbSYT::check(alpha_.ncols(), alpha_.n());
+#else
+			tbSYT::check(N_, alpha_.n());
+#endif
+		} catch (const std::runtime_error& error) {
+			std::cerr << error.what() << std::endl;
+			std::cerr << "Interrupting MPI execution ..." << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+	}
+#endif
+
 }
 
 
@@ -43,11 +61,20 @@ void HBFundEngineMPI::init()
 	}
 	
 	// each MPI process generates the entire list of SYTs
-	#ifdef SG_USE_VSYT
+#ifdef SG_STORE_COLUMNS
+	Irrep alphaT(alpha_.transpose());
+#ifdef SG_USE_VSYT
+	Y_ = get_SYT<SYTel>(alphaT);
+#else
+	Y_ = get_SYT(alphaT);
+#endif
+#else
+#ifdef SG_USE_VSYT
 	Y_ = get_SYT<SYTel>(alpha_);
-	#else
+#else
 	Y_ = get_SYT(alpha_);
-	#endif
+#endif
+#endif
 	
 	mpi_get_local_dimension();
 	print_mpi_details();
@@ -60,11 +87,11 @@ void HBFundEngineMPI::init()
 			F = std::string("GB");
 		}
 		
-		#ifdef SG_USE_VSYT
+#ifdef SG_USE_VSYT
 		std::cout << "SYTs Memory: " << alpha_.n()*sizeof(Y_[0][0])*((double)Y_.size()/factor) << F << std::endl;
-		#else
+#else
 		std::cout << "SYTs Memory: " << sizeof(Y_[0])*((double)Y_.size()/factor) << F << std::endl;
-		#endif
+#endif
 	}
 	
 	time(t0, std::string("init"));

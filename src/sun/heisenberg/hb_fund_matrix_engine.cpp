@@ -12,6 +12,7 @@
 
 #include "../../common/time.h"
 #include "../utils/utils.h"
+#include "../utils/young_factor.h"
 
 
 #ifdef SG_USE_VSYT
@@ -100,12 +101,20 @@ void HBFundMatrixEngine::build_matrix_lookups()
 			const int rowk = Y_[i].get(k);
 			const int rowkk = Y_[i].get(k+1);
 			
-			if (rowk==rowkk) {
+			if (rowk == rowkk) {
+#ifdef SG_STORE_COLUMNS
+				P_[k][i] = -1;
+#else
 				P_[k][i] = 0;
+#endif
 			} else {
 				const std::pair<int, int> cy = get_column_k_k_plus_one(Y_[i], k);
-				if (cy.first==cy.second) {
+				if (cy.first == cy.second) {
+#ifdef SG_STORE_COLUMNS
+					P_[k][i] = 0;
+#else
 					P_[k][i] = -1;
+#endif
 				} else {
 					SYT yfriend = Y_[i];
 					yfriend.exchange(k, k+1);
@@ -113,15 +122,16 @@ void HBFundMatrixEngine::build_matrix_lookups()
 					auto it = std::lower_bound(Y_.begin(), Y_.end(), yfriend);
 					UINT64 index = it - Y_.begin();
 					
-					if (index>i) {
+					if (index > i) {
 						P_[k][i] = static_cast<typePk>(index);
 						const typePk ax = cy.first - rowk - cy.second + rowkk; // axial distance from k to k+1 in SYT Y_[i]
-						if (ax>=0) {
+						if (ax >= 0) {
 							// This should never happen, because SYTs in Y_
 							// are ordered in the descending order of the LLOS
-							throw std::runtime_error("Problem: ax>=0");
+							throw std::runtime_error("Problem: ax >= 0");
 						}
-						P_[k][index] = ax; // negative and different from -1
+						P_[k][index] = ax;
+						// negative and different from -1
 					}
 				}
 			}
@@ -239,11 +249,11 @@ void HBFundMatrixEngine::multiply_v1_openmp(const sg_vec<coeff_t>& w, sg_vec<coe
 			#pragma omp parallel for schedule(guided)
 			for (UINT64 i=0; i<dimension_; ++i)
 			{	
-				if (P_[k][i]==-1) {
+				if (P_[k][i] == -1) {
 					work[i] *= -1;
-				} else if (P_[k][i]>0) {
+				} else if (P_[k][i] > 0) {
 					const UINT64 index = P_[k][i];
-					const double rho = 1.0/static_cast<double>(P_[k][index]);
+					const double rho = 1.0/static_cast<double>(YOUNG_FACTOR * P_[k][index]);
 					const double work_i = work[i];
 					const double work_index = work[index];
 					const double eta = std::sqrt(1.0 - rho*rho);
@@ -294,11 +304,11 @@ void HBFundMatrixEngine::multiply_v1_openmp_numa(const sg_vec<coeff_t>& w, sg_ve
 			#pragma omp parallel for schedule(static)
 			for (UINT64 i=0; i<dimension_; ++i)
 			{	
-				if (P_[k][i]==-1) {
+				if (P_[k][i] == -1) {
 					work_[i] *= -1;
-				} else if (P_[k][i]>0) {
+				} else if (P_[k][i] > 0) {
 					const UINT64 index = P_[k][i];
-					const double rho = 1.0/static_cast<double>(P_[k][index]);
+					const double rho = 1.0/static_cast<double>(YOUNG_FACTOR * P_[k][index]);
 					const double work_i = work_[i];
 					const double work_index = work_[index];
 					const double eta = std::sqrt(1.0 - rho*rho);

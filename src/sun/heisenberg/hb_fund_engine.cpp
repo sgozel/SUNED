@@ -10,6 +10,10 @@
 #include "../../common/time.h"
 #include "../utils/utils.h"
 
+#ifdef SG_STORE_COLUMNS
+#include "../irrep/irrep.h"
+#endif
+
 #ifdef SG_USE_VSYT
 #include "../syt_usage/vsyt_usage.h"
 #else
@@ -21,15 +25,24 @@ namespace sun {
 HBFundEngine::HBFundEngine(nlohmann::json const& inputParam)
 : HBEngine(inputParam)
 {
-	if (Ns_!=alpha_.n()) {
+	if (Ns_ != alpha_.n()) {
 		throw std::runtime_error("For the fundamental irrep at each site, Ns must match the number of boxes in alpha.");
 	}
 	
-	#ifndef SG_USE_VSYT
+#ifndef SG_USE_VSYT
+#ifdef SG_STORE_COLUMNS
+	tbSYT::check(alpha_.ncols(), alpha_.n());
+#else
 	tbSYT::check(N_, alpha_.n());
-	#endif
-	
+#endif
 	std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+#endif
+
+#ifdef SG_STORE_COLUMNS
+	std::cout << "WARNING: Storing SYTs as columns" << std::endl;
+	std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
+#endif
+
 	std::cout << "N = " << N_ << std::endl;
 	std::cout << "Ns = " << Ns_ << std::endl;
 	std::cout << "Target irrep: " << std::endl;
@@ -53,12 +66,21 @@ void HBFundEngine::init()
 	dimension_ = multiplicity(alpha_);
 	std::cout << "dimension = " << dimension_ << std::endl;
 
-	#ifdef SG_USE_VSYT
+#ifdef SG_STORE_COLUMNS
+	Irrep alphaT(alpha_.transpose());
+#ifdef SG_USE_VSYT
+	Y_ = get_SYT<SYTel>(alphaT);
+#else
+	Y_ = get_SYT(alphaT);
+#endif
+#else
+#ifdef SG_USE_VSYT
 	Y_ = get_SYT<SYTel>(alpha_);
-	#else
+#else
 	Y_ = get_SYT(alpha_);
-	#endif
-	
+#endif
+#endif
+
 	double factor = 1e6;
 	std::string F("MB");
 	if (8*Y_.size()>=1e9) {
@@ -66,11 +88,11 @@ void HBFundEngine::init()
 		std::string F("GB");
 	}
 	
-	#ifdef SG_USE_VSYT
+#ifdef SG_USE_VSYT
 	std::cout << "SYTs Memory: " << alpha_.n()*sizeof(Y_[0][0])*((double)Y_.size()/factor) << F << std::endl;
-	#else
+#else
 	std::cout << "SYTs Memory: " << sizeof(Y_[0])*((double)Y_.size()/factor) << F << std::endl;
-	#endif
+#endif
 	
 	time(t0, std::string("init"));
 }

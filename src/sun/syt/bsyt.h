@@ -160,7 +160,9 @@ protected:
 #error "SG_BSYT_CONTAINER_SIZE is not defined. Aborting."
 #endif
 
-#if SG_BSYT_CONTAINER_SIZE == 4
+#if SG_BSYT_CONTAINER_SIZE == 2
+typedef bSYT<UINT16, SG_BSYT_NBITS> tbSYT;
+#elif SG_BSYT_CONTAINER_SIZE == 4
 typedef bSYT<UINT32, SG_BSYT_NBITS> tbSYT;
 #elif SG_BSYT_CONTAINER_SIZE == 8
 typedef bSYT<UINT64, SG_BSYT_NBITS> tbSYT;
