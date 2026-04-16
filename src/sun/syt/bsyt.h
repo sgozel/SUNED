@@ -4,6 +4,7 @@
 #define SUN_BSYT_H
 
 #include <iostream>
+#include <string>
 #include <climits>
 #include <stdexcept>
 
@@ -26,19 +27,38 @@ public:
     
     static constexpr unsigned int bitextent() {return extent;}
     
-    static void check(unsigned int N, unsigned int n) {
-		constexpr unsigned int maxN = (1U<<extent);
-		if (N>maxN) {
-			throw std::runtime_error("Not enough bits per box");
+    static void check(const unsigned int N, const unsigned int n) {
+		constexpr unsigned int actual_maxN = (1U << extent);
+		const unsigned int actual_nbits = CHAR_BIT * sizeof(type_t);
+		unsigned int required_extent = 0;
+		{
+			unsigned int val = N - 1;
+			while (val > 0) {
+				val >>= 1;
+				required_extent += 1;
+			}
 		}
-		if (N<=maxN/2) {
-			std::cerr << "WARNING: bit extent is suboptimal" << std::endl;
+		const unsigned int required_nbits = n * required_extent;
+		
+		if (N > actual_maxN) {
+			throw std::runtime_error(std::string("Not enough bits per box for SU(") + std::to_string(N) + ") " + 
+									 "[ actual: " + std::to_string(extent) + " | needed: " +
+									 std::to_string(required_extent) + " ]");
 		}
-		if (n*extent>CHAR_BIT*sizeof(type_t)) {
-			throw std::runtime_error("Not enough bits in the container");
+		if (required_nbits > actual_nbits) {
+			throw std::runtime_error(std::string("Not enough bits in the container ") + 
+									 "[ actual: " + std::to_string(actual_nbits) + 
+									 " | needed: " + std::to_string(required_nbits) + " ]");
 		}
-		if (n*extent<=CHAR_BIT*sizeof(type_t)/2) {
-			std::cerr << "WARNING: container is suboptimal" << std::endl;
+		if (required_extent < extent) {
+			std::cerr << "WARNING: bit extent is suboptimal for SU(" << std::to_string(N) << ") "
+					  << "[ actual: " << std::to_string(extent)
+					  << " | needed: " << std::to_string(required_extent) << " ]" << std::endl;
+		}
+		if (required_nbits <= actual_nbits/2) {
+			std::cerr << "WARNING: container is suboptimal for SU(" << std::to_string(N) << ") with "
+					  << std::to_string(n) << " boxes [ actual: " << std::to_string(actual_nbits) 
+					  << " | needed " << std::to_string(required_nbits) << " ]" << std::endl;
 		}
 	}
 
@@ -132,8 +152,19 @@ protected:
 
 };
 
-#define NBITS 2
-typedef bSYT<UINT64, NBITS> tbSYT;
+#ifndef SG_BSYT_NBITS
+#error "SG_BSYT_NBITS is not defined. Aborting."
+#endif
+
+#ifndef SG_BSYT_CONTAINER_SIZE
+#error "SG_BSYT_CONTAINER_SIZE is not defined. Aborting."
+#endif
+
+#if SG_BSYT_CONTAINER_SIZE == 4
+typedef bSYT<UINT32, SG_BSYT_NBITS> tbSYT;
+#elif SG_BSYT_CONTAINER_SIZE == 8
+typedef bSYT<UINT64, SG_BSYT_NBITS> tbSYT;
+#endif
 
 } // namespace sun
 

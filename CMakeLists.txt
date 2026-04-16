@@ -16,6 +16,10 @@ endif()
 find_package(OpenMP REQUIRED)
 find_package(BLAS REQUIRED)
 
+#=======================================================================
+# OPTIONS
+#=======================================================================
+
 option(SUNED_EIGVALS "Build eigenvalue extraction" ON)
 option(SUNED_EIGVECS "Build eigenvector extraction" OFF)
 option(SUNED_CORRELATIONS "Build correlations extraction" OFF)
@@ -23,6 +27,23 @@ option(SUNED_USE_MPI "Build the MPI target (main_mpi) instead of the default tar
 option(SUNED_USE_NUMA "Enable NUMA-aware allocation" OFF)
 option(SUNED_LANCZOS_TWO_VECTORS "Build ED solver using two Lanczos vectors" OFF)
 option(SUNED_USE_VSYT "Use basic vector-SYT implementation" OFF)
+set(SUNED_BSYT_NBITS "2" CACHE STRING "Number of bits per box (1, 2, 3, 4)")
+set_property(CACHE SUNED_BSYT_NBITS PROPERTY STRINGS "1" "2" "3" "4")
+set(SUNED_BSYT_CONTAINER_SIZE "8" CACHE STRING "Number of bytes per SYT (4, 8)")
+set_property(CACHE SUNED_BSYT_CONTAINER_SIZE PROPERTY STRINGS "4" "8")
+
+message(STATUS "SUNED_USE_VSYT            = ${SUNED_USE_VSYT}")
+
+if(NOT SUNED_USE_VSYT)
+    if(NOT SUNED_BSYT_NBITS MATCHES "^[1-4]$")
+        message(FATAL_ERROR "SUNED_BSYT_NBITS should be 1, 2, 3 or 4 for SU(N) with 2<=N<=16. Got: ${SUNED_BSYT_NBITS}.")
+    endif()
+    if(NOT SUNED_BSYT_CONTAINER_SIZE MATCHES "^(4|8)$")
+        message(FATAL_ERROR "SUNED_BSYT_CONTAINER_SIZE should be 4 or 8. Got: ${SUNED_BSYT_CONTAINER_SIZE}.")
+    endif()
+    message(STATUS "SUNED_BSYT_NBITS          = ${SUNED_BSYT_NBITS}")
+    message(STATUS "SUNED_BSYT_CONTAINER_SIZE = ${SUNED_BSYT_CONTAINER_SIZE}")
+endif()
 
 if(SUNED_EIGVECS)
     set(SUNED_EIGVALS OFF)
@@ -32,6 +53,12 @@ if(SUNED_CORRELATIONS)
     set(SUNED_EIGVALS OFF)
     set(SUNED_EIGVECS ON)
 endif()
+
+message(STATUS "SUNED_EIGVALS             = ${SUNED_EIGVALS}")
+message(STATUS "SUNED_EIGVECS             = ${SUNED_EIGVECS}")
+message(STATUS "SUNED_CORRELATIONS        = ${SUNED_CORRELATIONS}")
+message(STATUS "SUNED_USE_MPI             = ${SUNED_USE_MPI}")
+message(STATUS "SUNED_USE_NUMA            = ${SUNED_USE_NUMA}")
 
 #=======================================================================
 # SOURCE GIT INFO
@@ -82,12 +109,15 @@ include_directories(${CMAKE_BINARY_DIR}/src/version)
 set(COMMON_SOURCES
     ${CMAKE_SOURCE_DIR}/src/common/time.cpp
     ${CMAKE_SOURCE_DIR}/src/tmatrix/tmatrix.cpp
-    ${CMAKE_SOURCE_DIR}/src/sun/syt_usage/bsyt_usage.cpp
     ${CMAKE_SOURCE_DIR}/src/sun/permutation/permutation.cpp
     ${CMAKE_SOURCE_DIR}/src/sun/lattice/lattice.cpp
     ${CMAKE_SOURCE_DIR}/src/sun/utils/utils.cpp
     ${CMAKE_SOURCE_DIR}/src/sun/heisenberg/hb_engine.cpp
 )
+
+if(NOT SUNED_USE_VSYT)
+    list(APPEND COMMON_SOURCES ${CMAKE_SOURCE_DIR}/src/sun/syt_usage/bsyt_usage.cpp)
+endif()
 
 if(SUNED_USE_MPI)
     find_package(MPI REQUIRED)
@@ -112,6 +142,9 @@ if(SUNED_USE_MPI)
 	endif()
     if(SUNED_USE_VSYT)
         target_compile_definitions(main_mpi PRIVATE SG_USE_VSYT)
+    else()
+        target_compile_definitions(main_mpi PRIVATE SG_BSYT_NBITS=${SUNED_BSYT_NBITS})
+        target_compile_definitions(main_mpi PRIVATE SG_BSYT_CONTAINER_SIZE=${SUNED_BSYT_CONTAINER_SIZE})
     endif()
 
     target_include_directories(main_mpi PRIVATE 
@@ -150,6 +183,9 @@ else()
 	endif()
     if(SUNED_USE_VSYT)
         target_compile_definitions(main PRIVATE SG_USE_VSYT)
+    else()
+        target_compile_definitions(main PRIVATE SG_BSYT_NBITS=${SUNED_BSYT_NBITS})
+        target_compile_definitions(main PRIVATE SG_BSYT_CONTAINER_SIZE=${SUNED_BSYT_CONTAINER_SIZE})
     endif()
 
     target_include_directories(main PRIVATE 
@@ -197,17 +233,28 @@ target_include_directories(main_lattice PRIVATE
 # SYTS TARGET
 #=======================================================================
 
+set(SYT_TARGET_SOURCES
+    ${CMAKE_SOURCE_DIR}/src/main_syts.cpp
+    ${CMAKE_SOURCE_DIR}/src/sun/permutation/permutation.cpp
+    ${CMAKE_SOURCE_DIR}/src/sun/utils/utils.cpp
+    ${CMAKE_SOURCE_DIR}/src/common/time.cpp
+)
+
+if(NOT SUNED_USE_VSYT)
+    list(APPEND SYT_TARGET_SOURCES ${CMAKE_SOURCE_DIR}/src/sun/syt_usage/bsyt_usage.cpp)
+endif()
+
 add_executable(main_syts
-    src/main_syts.cpp
-    src/sun/syt_usage/bsyt_usage.cpp
-    src/sun/permutation/permutation.cpp
-    src/sun/utils/utils.cpp
+    ${SYT_TARGET_SOURCES}
 )
 add_dependencies(main_syts update_version)
 
 target_compile_options(main_syts PRIVATE ${COMMON_COMPILE_OPTIONS})
 if(SUNED_USE_VSYT)
     target_compile_definitions(main_syts PRIVATE SG_USE_VSYT)
+else()
+    target_compile_definitions(main_syts PRIVATE SG_BSYT_NBITS=${SUNED_BSYT_NBITS})
+    target_compile_definitions(main_syts PRIVATE SG_BSYT_CONTAINER_SIZE=${SUNED_BSYT_CONTAINER_SIZE})
 endif()
 if(SUNED_USE_NUMA)
 	target_compile_definitions(main_syts PRIVATE SG_USE_NUMA)
