@@ -127,9 +127,9 @@ public:
     void print(const unsigned int Ns, std::ostream& os=std::cout) const {
 		os << "[" << std::flush;
         for (unsigned int i=0; i<Ns-1; ++i) {
-            os << y_[i] << ", " << std::flush;
+            os << static_cast<int>(y_[i]) << ", " << std::flush;
         }
-        os << y_[Ns-1] << "]" << std::endl;
+        os << static_cast<int>(y_[Ns-1]) << "]" << std::endl;
     }
 
 protected:
@@ -139,9 +139,7 @@ protected:
 };
 
 typedef vSYT<int8_t> Int8vSYT;
-typedef vSYT<int16_t> Int16vSYT;
-typedef vSYT<int32_t> Int32vSYT;
 
-}
+} // namespace sun
 
 #endif

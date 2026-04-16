@@ -59,6 +59,13 @@ if(SUNED_USE_MPI)
     if(SUNED_USE_NUMA)
 		target_compile_definitions(tests_mpi PRIVATE SG_USE_NUMA)
 	endif()
+	if(SUNED_USE_VSYT)
+		message(FATAL_ERROR "Currently, we do not support VSYT in MPI code.")
+        #target_compile_definitions(tests_mpi PRIVATE SG_USE_VSYT)
+    else()
+        target_compile_definitions(tests_mpi PRIVATE SG_BSYT_NBITS=${SUNED_BSYT_NBITS})
+        target_compile_definitions(tests_mpi PRIVATE SG_BSYT_CONTAINER_SIZE=${SUNED_BSYT_CONTAINER_SIZE})
+    endif()
 
     target_link_libraries(tests_mpi PRIVATE
         GTest::gtest
@@ -123,6 +130,12 @@ else()
 	if(SUNED_USE_NUMA)
 		target_compile_definitions(tests_common PRIVATE SG_USE_NUMA)
 	endif()
+	if(SUNED_USE_VSYT)
+        target_compile_definitions(tests_common PRIVATE SG_USE_VSYT)
+    else()
+        target_compile_definitions(tests_common PRIVATE SG_BSYT_NBITS=${SUNED_BSYT_NBITS})
+        target_compile_definitions(tests_common PRIVATE SG_BSYT_CONTAINER_SIZE=${SUNED_BSYT_CONTAINER_SIZE})
+    endif()
 
 	target_link_libraries(tests_common PRIVATE
 		GTest::gtest
@@ -169,6 +182,12 @@ else()
 	if(SUNED_USE_NUMA)
 		target_compile_definitions(tests_nonmpi PRIVATE SG_USE_NUMA)
 	endif()
+	if(SUNED_USE_VSYT)
+        target_compile_definitions(tests_nonmpi PRIVATE SG_USE_VSYT)
+    else()
+        target_compile_definitions(tests_nonmpi PRIVATE SG_BSYT_NBITS=${SUNED_BSYT_NBITS})
+        target_compile_definitions(tests_nonmpi PRIVATE SG_BSYT_CONTAINER_SIZE=${SUNED_BSYT_CONTAINER_SIZE})
+    endif()
 	
 	target_link_libraries(tests_nonmpi PRIVATE
 		GTest::gtest
