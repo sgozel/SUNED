@@ -1,11 +1,11 @@
 
 .PHONY: \
 	all \
-	build_mpi_eivals build_mpi_eigvecs build_mpi_correlations \
+	build_mpi_eigvals build_mpi_eigvecs build_mpi_correlations \
 	build_debug_mpi build_tests_mpi \
 	clean
 
-all: build_mpi_eivals build_mpi_eigvecs build_mpi_correlations
+all: build_mpi_eigvals build_mpi_eigvecs build_mpi_correlations
 
 #===================================================================
 # 3 most important targets: MPI x {eigvals, eigvecs, correlations}
