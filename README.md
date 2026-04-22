@@ -222,9 +222,13 @@ ctest --verbose --output-on-failure --test-dir build/testing_mpi
 ctest --verbose --output-on-failure --test-dir build/testing_mpi_numa
 ```
 
-## License
+## Significant others
 
-The code is licensed under GNU GPL-v3.0 as given in the file LICENSE.
+The three following reposittories, written by the same author, are closely related to SU($N$)ED:
+
+- [lattice_optimizer]: reduce the computational cost of ED by performing a graph optimization based on the specified Hamiltonian.
+- [suned_analysis]: a set of Python scripts to plot data obtained with SU($N$)ED, in particular ED spectra.
+- [SUN4Py]: an extended Python library to perform ED and DMRG calculations on SU($N$) models.
 
 ## Citation
 
@@ -247,6 +251,10 @@ If you use any of the codes of this repository in your work, you are invited to 
 }
 ```
 
+## License
+
+The code is licensed under GNU GPL-v3.0 as given in the file LICENSE.
+
 ## Author
 
 Samuel Gozel
@@ -258,3 +266,5 @@ Samuel Gozel
 [nlohmann/json]: <https://github.com/nlohmann/json>
 [GoogleTests]: <https://github.com/google/googletest>
 [lattice_optimizer]: <https://github.com/sgozel/lattice_optimizer>
+[suned_analysis]: <https://github.com/sgozel/suned_analysis>
+[SUN4Py]: <https://github.com/SUN4Py/SUN4Py>
