@@ -60,6 +60,7 @@ message(STATUS "SUNED_EIGVECS             = ${SUNED_EIGVECS}")
 message(STATUS "SUNED_CORRELATIONS        = ${SUNED_CORRELATIONS}")
 message(STATUS "SUNED_USE_MPI             = ${SUNED_USE_MPI}")
 message(STATUS "SUNED_USE_NUMA            = ${SUNED_USE_NUMA}")
+message(STATUS "SUNED_STORE_COLUMNS       = ${SUNED_STORE_COLUMNS}")
 
 #=======================================================================
 # SOURCE GIT INFO
