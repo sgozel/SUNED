@@ -90,7 +90,10 @@ struct LanczosParams {
 		// Eigenvector
 		dump_eigvec = inputParam.value("dump_eigvec", true);
 		eigvec_folder = inputParam.value("eigvec_folder_path", std::string(""));
-		
+		if ((!eigvec_folder.empty()) && (eigvec_folder.back()!='/')) {
+			eigvec_folder += std::string("/");
+		}
+
 		// Logging
 		logging = inputParam.value("logging", true);
 		logging_full = inputParam.value("logging_full", false);
