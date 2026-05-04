@@ -55,6 +55,7 @@ int main(int argc, char* argv[])
 	#ifdef SG_USE_VSYT
 	std::vector<sun::Int8vSYT> Y = sun::get_SYT<int8_t>(alpha);
 	#else
+	sun::tbSYT::check(alpha.nrows(), alpha.n());
     std::vector<sun::tbSYT> Y = sun::get_SYT(alpha);
 	#endif
 	time(t0, std::string("get_SYT"));
