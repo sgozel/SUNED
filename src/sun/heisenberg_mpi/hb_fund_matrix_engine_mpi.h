@@ -48,7 +48,7 @@ protected:
 	bool dump_matrices_;
 	std::string matrix_dump_path_;
 	
-	std::vector<std::pair<SYT, SYT>> Y_bounds_;
+	std::vector<SYT> Y_bounds_lower_;
 	
 	std::vector<std::vector<typePk>> P_;
 	
