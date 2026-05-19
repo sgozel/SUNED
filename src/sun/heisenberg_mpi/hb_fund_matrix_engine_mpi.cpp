@@ -55,7 +55,7 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 		}
 	}
 	
-	Y_bounds_.resize(mpi_world_size_);
+	Y_bounds_lower_.resize(mpi_world_size_);
 	
 	unsigned int n_transpo = alpha_.n() - 1;
 	
@@ -165,21 +165,20 @@ void HBFundMatrixEngineMPI::init()
 
 void HBFundMatrixEngineMPI::communicate_bounds()
 {
-	// pack bounds into a single vector of int
-	std::vector<int8_t> local_bounds(2 * Ns_);
+	// pack lower bound into a vector of int
+	std::vector<int8_t> local_bounds(Ns_);
 	for (size_t i = 0; i < Ns_; ++i) {
 		local_bounds[i] = Y_[0].get(i);
-		local_bounds[Ns_+i] = Y_[Y_.size()-1].get(i);
 	}
 
 	// communicate bounds
-	std::vector<int8_t> all_bounds(2 * Ns_ * mpi_world_size_);
+	std::vector<int8_t> all_bounds(Ns_ * mpi_world_size_);
 	MPI_Allgather(
 			local_bounds.data(),  // send buffer
-			2*Ns_,                // send count
+			Ns_,                  // send count
 			mpi_type<int8_t>(),   // send type
 			all_bounds.data(),    // recv buffer
-			2*Ns_,                // recv count per process
+			Ns_,                  // recv count per process
 			mpi_type<int8_t>(),   // recv type
 			MPI_COMM_WORLD
 	);
@@ -187,8 +186,7 @@ void HBFundMatrixEngineMPI::communicate_bounds()
 	// Put back vector<int8_t> into SYT format
 	for (int rank = 0; rank < mpi_world_size_; ++rank) {
 		for (unsigned int i = 0; i < Ns_; ++i) {
-			Y_bounds_[rank].first.set(i, all_bounds[rank * 2 * Ns_ + i]);
-			Y_bounds_[rank].second.set(i, all_bounds[rank * 2 * Ns_ + i + Ns_]);
+			Y_bounds_lower_[rank].set(i, all_bounds[rank * Ns_ + i]);
 		}
 	}
 }
@@ -324,16 +322,16 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 					SYT yfriend = Y_[i];
 					yfriend.exchange(k, k+1);
 					
-					// Extract the rank of the friend SYT
-					int rankfriend = -1;
-					for (int rank = 0; rank < mpi_world_size_; ++rank) {
-						if ((yfriend>=Y_bounds_[rank].first) && (yfriend<=Y_bounds_[rank].second)) {
-							rankfriend = rank;
-							break;
-						}
+					// Extract the rank of the friend SYT using binary search
+					int rankfriend;
+					{
+						auto it = std::upper_bound(Y_bounds_lower_.begin(), Y_bounds_lower_.end(), yfriend);
+						// it is an iterator to the first element in Y_bounds_lower which is strictly larger than yfriend
+						rankfriend = static_cast<int>(std::distance(Y_bounds_lower_.begin(), it)) - 1;
 					}
+
 					if (rankfriend == -1) {
-						std::cerr << "PROBLEM Y : the rank of the friend SYT could not get extracted from Y_bounds_" << std::endl;
+						std::cerr << "PROBLEM Y : the rank of the friend SYT could not get extracted from Y_bounds_lower_" << std::endl;
 						MPI_Abort(MPI_COMM_WORLD, 1);
 					}
 					
@@ -352,14 +350,6 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 						index += mpi_rank_ * mpi_bare_dimension_; // global index
 						
 						offdiag_indices[i] = index + 1; // add 1 to differentiate from value 0 used for diagonal elements
-					
-						// search to which process <index> belongs to
-						const int rankfriend_v2 = mpi_rank_from_index(index);
-						
-						if (rankfriend_v2 != rankfriend) {
-							std::cerr << "PROBLEM: missmatch between two different methods of extracting the rank of the friend SYT." << std::endl;
-							MPI_Abort(MPI_COMM_WORLD, 1);
-						}
 						
 						// axial distance from k to k+1 in SYT Y_[i]
 						// count +1 for each step made downwards or to the left
