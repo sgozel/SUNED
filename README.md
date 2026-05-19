@@ -212,14 +212,7 @@ Note that in the case of the 5-sites periodic chain above, we did not number the
 
 To compile tests:
 ```
-make build_tests_all
-```
-and run them with:
-```
-ctest --verbose --output-on-failure --test-dir build/testing
-ctest --verbose --output-on-failure --test-dir build/testing_numa
-ctest --verbose --output-on-failure --test-dir build/testing_mpi
-ctest --verbose --output-on-failure --test-dir build/testing_mpi_numa
+make build_tests_mpi
 ```
 
 ## Significant others

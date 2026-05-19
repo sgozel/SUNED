@@ -124,12 +124,12 @@ void HBFundMatrixEngineMPI::init()
 	const UINT64 from = mpi_rank_ * mpi_bare_dimension_;
 	
 #ifdef SG_STORE_COLUMNS
+	const Irrep alphaT(alpha_.transpose());
 #ifdef SG_USE_VSYT
 	std::cerr << "Currently, VSYT is unsupported on MPI application." << std::endl;
 	MPI_Abort(MPI_COMM_WORLD, 1);
-	Y_ = get_SYT<SYTel>(alpha_, from, mpi_dimension_);
+	Y_ = get_SYT<SYTel>(alphaT, from, mpi_dimension_);
 #else
-	const Irrep alphaT(alpha_.transpose());
 	Y_ = get_SYT(alphaT, from, mpi_dimension_);
 #endif
 #else
@@ -142,36 +142,7 @@ void HBFundMatrixEngineMPI::init()
 #endif
 #endif
 	
-	// Each process sends its Y_[0] to all processes
-	const SYT_value_t first_val = Y_[0].value();
-	std::vector<SYT_value_t> all_first(mpi_world_size_);
-	MPI_Allgather(
-		&first_val,              // send buffer
-		1,                       // send count
-		mpi_type<SYT_value_t>(), // send type
-		all_first.data(),        // recv buffer
-		1,                       // recv count per process
-		mpi_type<SYT_value_t>(), // recv type
-		MPI_COMM_WORLD
-	);
-
-	// Each process sends its Y_[Y_.size()-1] to all processes
-	const SYT_value_t last_val  = Y_[Y_.size()-1].value();
-	std::vector<SYT_value_t> all_last(mpi_world_size_);
-	MPI_Allgather(
-		&last_val,               // send buffer
-		1,                       // send count
-		mpi_type<SYT_value_t>(), // send type
-		all_last.data(),         // recv buffer
-		1,                       // recv count per process
-		mpi_type<SYT_value_t>(), // recv type
-		MPI_COMM_WORLD
-	);
-	
-	for (int rank = 0; rank < mpi_world_size_; ++rank) {
-		Y_bounds_[rank].first = SYT(all_first[rank]);
-		Y_bounds_[rank].second = SYT(all_last[rank]);
-	}
+	communicate_bounds();
 	
 	work_.resize(mpi_dimension_);
 #ifdef SG_USE_NUMA
@@ -189,6 +160,37 @@ void HBFundMatrixEngineMPI::init()
 	}
 	
 	time(t0, std::string("init"));
+}
+
+
+void HBFundMatrixEngineMPI::communicate_bounds()
+{
+	// pack bounds into a single vector of int
+	std::vector<int8_t> local_bounds(2 * Ns_);
+	for (size_t i = 0; i < Ns_; ++i) {
+		local_bounds[i] = Y_[0].get(i);
+		local_bounds[Ns_+i] = Y_[Y_.size()-1].get(i);
+	}
+
+	// communicate bounds
+	std::vector<int8_t> all_bounds(2 * Ns_ * mpi_world_size_);
+	MPI_Allgather(
+			local_bounds.data(),  // send buffer
+			2*Ns_,                // send count
+			mpi_type<int8_t>(),   // send type
+			all_bounds.data(),    // recv buffer
+			2*Ns_,                // recv count per process
+			mpi_type<int8_t>(),   // recv type
+			MPI_COMM_WORLD
+	);
+	
+	// Put back vector<int8_t> into SYT format
+	for (int rank = 0; rank < mpi_world_size_; ++rank) {
+		for (unsigned int i = 0; i < Ns_; ++i) {
+			Y_bounds_[rank].first.set(i, all_bounds[rank * 2 * Ns_ + i]);
+			Y_bounds_[rank].second.set(i, all_bounds[rank * 2 * Ns_ + i + Ns_]);
+		}
+	}
 }
 
 

@@ -36,6 +36,7 @@ public:
 	std::vector<double> correlations(const T&, const unsigned int refsite = 0) const;
 	
 private:
+	void communicate_bounds();
 	void free_basis();
 	void dump_matrix(const unsigned int k) const;
 	bool load_matrix(const unsigned int k);
