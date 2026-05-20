@@ -115,6 +115,8 @@ The rule is that any `--key value` pair provided on the command line will overri
 | `keep_checkpoint` | Keep checkpoint on disk after convergence | false |
 | `dump_matrices` | Write matrices $\tau_{k, k+1}$ to file | false |
 | `matrix_dump_folder_path` | Folder path for $\tau_{k, k+1}$ | `.` |
+| `dump_counts` | Write counts of local and remote pairs of SYTs in each $\tau_{k, k+1}$ to file | false |
+| `counts_dump_folder_path` | Folder path for counts | `.` |
 | `correlation_refsite` | Reference site $i$ for correlations $`\left<P_{i, j}\right>, \ \forall j`$ | 0 |
 
 

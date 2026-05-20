@@ -21,5 +21,7 @@
 "keep_checkpoint": true,
 "dump_matrices": false,
 "matrix_dump_folder_path": "/scratch/lookups/",
+"dump_counts": false,
+"counts_dump_folder_path": "/scratch/logs/",
 "correlation_refsite": 0
 }

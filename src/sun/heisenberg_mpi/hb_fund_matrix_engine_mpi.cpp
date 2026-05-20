@@ -36,12 +36,25 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 	
 	if (dump_matrices_ == true) {
 		if (!inputParam.contains("matrix_dump_folder_path")) {
-			std::cerr << "Missing matrix_dump_folder_path in input .json file for HBFundEngineMPI." << std::endl;
+			std::cerr << "Missing matrix_dump_folder_path in input .json file for HBFundMatrixEngineMPI." << std::endl;
 			MPI_Abort(MPI_COMM_WORLD, 1);
 		}
 		matrix_dump_path_ = inputParam["matrix_dump_folder_path"];
 		if (matrix_dump_path_.back()!='/') {
 			matrix_dump_path_ += std::string("/");
+		}
+	}
+
+	dump_counts_ = inputParam.value("dump_counts", false);
+
+	if (dump_counts_ == true) {
+		if (!inputParam.contains("counts_dump_folder_path")) {
+			std::cerr << "Missing counts_dump_folder_path in input .json file for HBFundMatrixEngineMPI." << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+		counts_dump_folder_path_ = inputParam["counts_dump_folder_path"];
+		if (counts_dump_folder_path_.back()!='/') {
+			counts_dump_folder_path_ += std::string("/");
 		}
 	}
 	
@@ -673,6 +686,11 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		if (dump_matrices_ == true) {
 			dump_matrix(k);
 		}
+		if (dump_counts_ == true) {
+			if (k > 0) {
+				dump_pairs_counts(k);
+			}
+		}
 	} // for k
 	
 	free_basis();
@@ -809,6 +827,67 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 	////////////////////////////////////////
 	
 	time(t_start, "build_matrix_lookups");
+}
+
+
+// dump local/remote counts across all ranks for transposition (k, k+1)
+void HBFundMatrixEngineMPI::dump_pairs_counts(const unsigned int k)
+{
+	// Communicate all counts of local pairs
+	std::vector<uint64_t> recv_buffer_local(mpi_world_size_, 0);
+
+	MPI_Gather(
+		&local_pairs_[k],         // send buffer
+		1,                        // send count
+		mpi_type<uint64_t>(),     // send type
+		recv_buffer_local.data(), // receive buffer
+		1,                        // receive count (per process)
+		mpi_type<uint64_t>(),     // send type
+		0,
+		MPI_COMM_WORLD
+	);
+
+	// Communicate all counts of remote pairs
+
+	// The send buffer is:
+	// mpi_offdiag_nodes_remote_only_[k] --> vector of INT64 of length mpi_world_size_
+	// which contains the number of remote pairs between this rank and all other ranks
+
+	std::vector<int64_t> recv_buffer_remote(mpi_world_size_ * mpi_world_size_, 0);
+
+	MPI_Gather(
+		mpi_offdiag_nodes_remote_only_[k].data(), // send buffer
+		mpi_world_size_,           // send count
+		mpi_type<int64_t>(),       // send datatype
+		recv_buffer_remote.data(), // receive buffer
+		mpi_world_size_,           // receive count (per process)
+		mpi_type<int64_t>(),       // receive datatype
+		0,                         // root (receive process)
+		MPI_COMM_WORLD
+	);
+
+	if (mpi_rank_ == 0) {
+		// Output to text file
+		std::string filename_counts("counts_k" + std::to_string(k) + ".log");
+		filename_counts = counts_dump_folder_path_ + filename_counts;
+		
+		std::ofstream out_counts(filename_counts, std::ios::app);
+		if (!out_counts) {
+			std::cerr << "Cannot open file: " + filename_counts << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+		
+		for (int rank1 = 0; rank1 < mpi_world_size_; ++rank1) {
+			for (int rank2 = 0; rank2 < mpi_world_size_; ++rank2) {
+				if (rank2  == rank1) {
+					out_counts << std::left << std::setw(11) << recv_buffer_local[rank1] << "  ";
+				} else {
+					out_counts << std::left << std::setw(11) << recv_buffer_remote[rank1 * mpi_world_size_ + rank2] << "  ";
+				}
+			}
+			out_counts << std::endl;
+		}
+	}
 }
 
 

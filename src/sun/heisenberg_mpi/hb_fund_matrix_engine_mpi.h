@@ -41,12 +41,15 @@ private:
 	void dump_matrix(const unsigned int k) const;
 	bool load_matrix(const unsigned int k);
 	void precise_memory_usage() const;
+	void dump_pairs_counts(const unsigned int k);
 	
 	void apply_transpositions(const std::vector<AdjacentTransposition>&) const;
 
 protected:
 	bool dump_matrices_;
 	std::string matrix_dump_path_;
+	bool dump_counts_;
+	std::string counts_dump_folder_path_;
 	
 	std::vector<SYT> Y_bounds_lower_;
 	
