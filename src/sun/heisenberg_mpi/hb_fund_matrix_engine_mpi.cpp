@@ -306,75 +306,85 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		UINT64 local_pairs = 0;
 		UINT64 remote_pairs = 0;
 		
-		#pragma omp parallel for schedule(guided)
-		for (UINT64 i = 0; i < mpi_dimension_; ++i)
-		{	
-			const int rowk = Y_[i].get(k);
-			const int rowkk = Y_[i].get(k+1);
-			
-			if (rowk == rowkk) {
-				P_[k][i] = YOUNG_FACTOR;
-			} else {
-				const std::pair<int, int> cy = get_column_k_k_plus_one(Y_[i], k);
-				if (cy.first == cy.second) {
-					P_[k][i] = -YOUNG_FACTOR;
-				} else {		
-					SYT yfriend = Y_[i];
-					yfriend.exchange(k, k+1);
-					
-					// Extract the rank of the friend SYT using binary search
-					int rankfriend;
-					{
-						auto it = std::upper_bound(Y_bounds_lower_.begin(), Y_bounds_lower_.end(), yfriend);
-						// it is an iterator to the first element in Y_bounds_lower which is strictly larger than yfriend
-						rankfriend = static_cast<int>(std::distance(Y_bounds_lower_.begin(), it)) - 1;
-					}
+		#pragma omp parallel
+		{
+			UINT64 local_pairs_private = 0;
+			UINT64 mpi_nb_offdiag_local_k_private = 0;
 
-					if (rankfriend == -1) {
-						std::cerr << "PROBLEM Y : the rank of the friend SYT could not get extracted from Y_bounds_lower_" << std::endl;
-						MPI_Abort(MPI_COMM_WORLD, 1);
-					}
-					
-					if (rankfriend == mpi_rank_) {
-						// The friend SYT belongs to this rank - we can search within the local collection of SYTs
+			#pragma omp for schedule(guided)
+			for (UINT64 i = 0; i < mpi_dimension_; ++i)
+			{	
+				const int rowk = Y_[i].get(k);
+				const int rowkk = Y_[i].get(k+1);
+				
+				if (rowk == rowkk) {
+					P_[k][i] = YOUNG_FACTOR;
+				} else {
+					const std::pair<int, int> cy = get_column_k_k_plus_one(Y_[i], k);
+					if (cy.first == cy.second) {
+						P_[k][i] = -YOUNG_FACTOR;
+					} else {		
+						SYT yfriend = Y_[i];
+						yfriend.exchange(k, k+1);
 						
-						// increment the counter of local pairs
-						#pragma omp atomic
-						local_pairs += 1;
-						#pragma omp atomic
-						mpi_nb_offdiag_local_[k] += 1;
-						
-						// search index of element with binary search
-						auto it = std::lower_bound(Y_.begin(), Y_.end(), yfriend);
-						UINT64 index = it - Y_.begin(); // local index
-						index += mpi_rank_ * mpi_bare_dimension_; // global index
-						
-						offdiag_indices[i] = index + 1; // add 1 to differentiate from value 0 used for diagonal elements
-						
-						// axial distance from k to k+1 in SYT Y_[i]
-						// count +1 for each step made downwards or to the left
-						// count -1 for each step made upwards or to the right
-						const typePk ax = cy.first - rowk - cy.second + rowkk;
-						
-						P_[k][i] = -ax * YOUNG_FACTOR;
-						
-					} else {
-						// register a request for an index extraction on a friend rank
-						#pragma omp critical
+						// Extract the rank of the friend SYT using binary search
+						int rankfriend;
 						{
-							// increment the counters of remote pairs
-							remote_pairs += 1;
-							mpi_nb_offdiag_remote_[k] += 1;
-							mpi_offdiag_nodes_remote_only_[k][rankfriend] += 1;
-							// register the request
-							pending_i[rankfriend].emplace_back(i);
-							pending_syt[rankfriend].emplace_back(yfriend.value());
+							auto it = std::upper_bound(Y_bounds_lower_.begin(), Y_bounds_lower_.end(), yfriend);
+							// it is an iterator to the first element in Y_bounds_lower which is strictly larger than yfriend
+							rankfriend = static_cast<int>(std::distance(Y_bounds_lower_.begin(), it)) - 1;
+						}
+
+						if (rankfriend == -1) {
+							std::cerr << "PROBLEM Y : the rank of the friend SYT could not get extracted from Y_bounds_lower_" << std::endl;
+							MPI_Abort(MPI_COMM_WORLD, 1);
+						}
+						
+						if (rankfriend == mpi_rank_) {
+							// The friend SYT belongs to this rank - we can search within the local collection of SYTs
+							
+							// increment the private counters of local pairs
+							local_pairs_private += 1;
+							mpi_nb_offdiag_local_k_private += 1;
+							
+							// search index of element with binary search
+							auto it = std::lower_bound(Y_.begin(), Y_.end(), yfriend);
+							UINT64 index = it - Y_.begin(); // local index
+							index += mpi_rank_ * mpi_bare_dimension_; // global index
+							
+							offdiag_indices[i] = index + 1; // add 1 to differentiate from value 0 used for diagonal elements
+							
+							// axial distance from k to k+1 in SYT Y_[i]
+							// count +1 for each step made downwards or to the left
+							// count -1 for each step made upwards or to the right
+							const typePk ax = cy.first - rowk - cy.second + rowkk;
+							
+							P_[k][i] = -ax * YOUNG_FACTOR;
+							
+						} else {
+							// register a request for an index extraction on a friend rank
+							#pragma omp critical
+							{
+								// increment the counters of remote pairs
+								remote_pairs += 1;
+								mpi_nb_offdiag_remote_[k] += 1;
+								mpi_offdiag_nodes_remote_only_[k][rankfriend] += 1;
+								// register the request
+								pending_i[rankfriend].emplace_back(i);
+								pending_syt[rankfriend].emplace_back(yfriend.value());
+							}
 						}
 					}
 				}
+			} // end for i (local Hilbert space)
+			
+			#pragma omp critical
+			{
+				local_pairs += local_pairs_private;
+				mpi_nb_offdiag_local_[k] += mpi_nb_offdiag_local_k_private;
 			}
-		} // end for i (local Hilbert space)
-		
+		} // #pragma omp parallel
+
 		// we have double-counted the local pairs, as we have counted both elements of each local pair
 		if (local_pairs % 2 == 1) {
 			std::cerr << "Problem : local_pairs = " << local_pairs << ", but it should be even." << std::endl;
