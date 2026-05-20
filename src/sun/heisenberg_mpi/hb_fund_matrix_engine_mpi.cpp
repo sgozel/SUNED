@@ -30,7 +30,7 @@
 namespace sun {
 
 HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
-: HBFundEngineMPI(inputParam)
+: HBFundEngineMPI(inputParam), mvm_counter(0)
 {	
 	dump_matrices_ = inputParam.value("dump_matrices", false);
 	
@@ -58,6 +58,20 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 		}
 	}
 	
+	dump_runtime_ = inputParam.value("dump_runtime", false);
+	n_mvm_runtime_ = inputParam.value("n_mvm_runtime", 10);
+
+	if (dump_runtime_ == true) {
+		if (!inputParam.contains("runtime_dump_folder_path")) {
+			std::cerr << "Missing runtime_dump_folder_path in input .json file for HBFundMatrixEngineMPI." << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+		runtime_dump_folder_path_ = inputParam["runtime_dump_folder_path"];
+		if (runtime_dump_folder_path_.back()!='/') {
+			runtime_dump_folder_path_ += std::string("/");
+		}
+	}
+
 	{
 		int max_ax = alpha_.nrows() + alpha_.ncols() - 1;
 		if ((-max_ax < std::numeric_limits<typePk>::min()) || (max_ax > std::numeric_limits<typePk>::max())) {
@@ -67,11 +81,19 @@ HBFundMatrixEngineMPI::HBFundMatrixEngineMPI(nlohmann::json const& inputParam)
 			MPI_Abort(MPI_COMM_WORLD, 1);
 		}
 	}
-	
+
 	Y_bounds_lower_.resize(mpi_world_size_);
 	
 	unsigned int n_transpo = alpha_.n() - 1;
 	
+	if (dump_runtime_) {
+		transpo_runtime_.resize(n_transpo);
+		bond_runtime_.resize(lattice_.get_nbonds());
+		for (unsigned int b = 0; b < lattice_.get_nbonds(); ++b) {
+			bond_runtime_[b].resize(n_mvm_runtime_);
+		}
+	}
+
 	P_.resize(n_transpo);
 	
 	local_pairs_.resize(n_transpo);
@@ -891,6 +913,51 @@ void HBFundMatrixEngineMPI::dump_pairs_counts(const unsigned int k)
 }
 
 
+void HBFundMatrixEngineMPI::dump_runtimes() const {
+	if (mpi_rank_ == 0) {
+		// dump bond runtimes
+		std::string filename_bond_runtimes("runtime_bonds.log");
+		filename_bond_runtimes = runtime_dump_folder_path_+ filename_bond_runtimes;
+		std::ofstream out_bond_runtimes(filename_bond_runtimes, std::ios::app);
+		if (!out_bond_runtimes) {
+			std::cerr << "Cannot open file: " + filename_bond_runtimes << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+
+		for (unsigned int b = 0; b < lattice_.get_nbonds(); ++b) {
+			for (size_t i = 0; i < bond_runtime_[b].size(); ++i) {
+				out_bond_runtimes << std::left << std::setw(8) 
+								  << std::fixed << std::setprecision(5)
+								  << bond_runtime_[b][i] << "   ";
+			}
+			out_bond_runtimes << std::endl;
+		}
+
+		std::vector<std::vector<double>>().swap(bond_runtime_);
+
+		// dump transposition runtimes
+		std::string filename_transpo_runtimes("runtime_transpos.log");
+		filename_transpo_runtimes = runtime_dump_folder_path_+ filename_transpo_runtimes;
+		std::ofstream out_transpo_runtimes(filename_transpo_runtimes, std::ios::app);
+		if (!out_transpo_runtimes) {
+			std::cerr << "Cannot open file: " + filename_transpo_runtimes << std::endl;
+			MPI_Abort(MPI_COMM_WORLD, 1);
+		}
+
+		for (unsigned int k = 0; k < alpha_.n()-1; ++k) {
+			for (size_t i = 0; i < transpo_runtime_[k].size(); ++i) {
+				out_transpo_runtimes << std::left << std::setw(8) 
+									 << std::fixed << std::setprecision(5)
+									 << transpo_runtime_[k][i] << "   ";
+			}
+			out_transpo_runtimes << std::endl;
+		}
+
+		std::vector<std::vector<double>>().swap(transpo_runtime_);
+	}
+}
+
+
 void HBFundMatrixEngineMPI::free_basis()
 {
 	std::vector<SYT>().swap(Y_);
@@ -1112,6 +1179,8 @@ void HBFundMatrixEngineMPI::apply_transpositions(const std::vector<AdjacentTrans
 {
 	for (unsigned int j = 0; j < ops.size(); ++j)
 	{	
+		auto t0 = std::chrono::high_resolution_clock::now();
+		
 		const unsigned int k = ops[j].getk();
 		
 		const std::vector<int64_t>& sendrecvcounts = mpi_offdiag_nodes_remote_only_[k];
@@ -1199,6 +1268,10 @@ void HBFundMatrixEngineMPI::apply_transpositions(const std::vector<AdjacentTrans
 			}
 		
 		} // omp parallel section
+
+		if ((dump_runtime_) && (mvm_counter < n_mvm_runtime_)) {
+			transpo_runtime_[k].push_back(time(t0));
+		}
 		
 	} // for j (operations in a bond)
 }
@@ -1212,6 +1285,11 @@ void HBFundMatrixEngineMPI::multiply(const sg_vec<double> & w, sg_vec<double> & 
         std::cerr << "Multiply method undefined" << std::endl;
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
+	mvm_counter += 1;
+
+	if ((dump_runtime_) && (mvm_counter == n_mvm_runtime_)) {
+		dump_runtimes();
+	}
 }
 
 
@@ -1231,8 +1309,12 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 	// separate buffer for received coefficients
 	recv_coeffs_.resize(max_offdiag_remote_);
 	
-	for (const auto& bond : lattice_.bonds)
+	//for (const auto& bond : lattice_.bonds)
+	for (unsigned int b = 0; b < lattice_.get_nbonds(); ++b)
 	{	
+		auto tbond0 = std::chrono::high_resolution_clock::now();
+		
+		const auto& bond = lattice_.bonds[b];
 		const double J = bond.couplingValue;
 
 		if (J == 0) {
@@ -1246,6 +1328,10 @@ void HBFundMatrixEngineMPI::multiply_mpi_matrix_v1(const sg_vec<coeff_t>& w, sg_
 		#pragma omp parallel for schedule(static)
 		for (UINT64 i = 0; i < mpi_dimension_; ++i) {
 			u[i] += J * work_[i];
+		}
+
+		if ((dump_runtime_) && (mvm_counter < n_mvm_runtime_)) {
+			bond_runtime_[b][mvm_counter] = time(tbond0);
 		}
 	}
 	

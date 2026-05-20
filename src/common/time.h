@@ -7,14 +7,14 @@
 #include <chrono>
 
 
-void time(
+double time(
 	const std::chrono::time_point<std::chrono::high_resolution_clock>& tstart, 
 	const std::chrono::time_point<std::chrono::high_resolution_clock>& tend,
-	const std::string& def);
+	const std::string& def = "");
 
 
-void time(
+double time(
 	const std::chrono::time_point<std::chrono::high_resolution_clock>& tstart, 
-	const std::string& def);
+	const std::string& def = "");
 
 #endif

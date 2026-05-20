@@ -42,7 +42,8 @@ private:
 	bool load_matrix(const unsigned int k);
 	void precise_memory_usage() const;
 	void dump_pairs_counts(const unsigned int k);
-	
+	void dump_runtimes() const;
+
 	void apply_transpositions(const std::vector<AdjacentTransposition>&) const;
 
 protected:
@@ -51,6 +52,12 @@ protected:
 	bool dump_counts_;
 	std::string counts_dump_folder_path_;
 	
+	bool dump_runtime_;
+	unsigned int n_mvm_runtime_; // number of MVMs for which runtime is dumped to file
+	std::string runtime_dump_folder_path_;
+	mutable std::vector<std::vector<double>> bond_runtime_; // [b] statistics of runtime of each bond
+	mutable std::vector<std::vector<double>> transpo_runtime_; // [k] statistics of runtime for each transposition (k, k+1)
+
 	std::vector<SYT> Y_bounds_lower_;
 	
 	std::vector<std::vector<typePk>> P_;
@@ -78,6 +85,7 @@ private:
 	mutable sg_vec<double> work_;
 	mutable std::vector<double> buffer_;
 	mutable std::vector<double> recv_coeffs_;
+	mutable unsigned int mvm_counter;
 };
 
 } // namespace sun
