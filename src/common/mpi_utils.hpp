@@ -8,6 +8,8 @@
 
 #include "datatypes.h"
 
+namespace mpi {
+
 template<class T> MPI_Datatype mpi_type();
 
 template<> inline MPI_Datatype mpi_type<float>()  { return MPI_FLOAT; }
@@ -22,5 +24,7 @@ template<> inline MPI_Datatype mpi_type<int32_t>()   { return MPI_INT32_T; }
 template<> inline MPI_Datatype mpi_type<uint32_t>()   { return MPI_UINT32_T; }
 template<> inline MPI_Datatype mpi_type<int64_t>()   { return MPI_INT64_T; }
 template<> inline MPI_Datatype mpi_type<uint64_t>()   { return MPI_UINT64_T; }
+
+} // namespace mpi
 
 #endif

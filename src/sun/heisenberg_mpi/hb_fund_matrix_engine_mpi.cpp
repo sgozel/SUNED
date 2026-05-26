@@ -209,12 +209,12 @@ void HBFundMatrixEngineMPI::communicate_bounds()
 	// communicate bounds
 	std::vector<int8_t> all_bounds(Ns_ * mpi_world_size_);
 	MPI_Allgather(
-			local_bounds.data(),  // send buffer
-			Ns_,                  // send count
-			mpi_type<int8_t>(),   // send type
-			all_bounds.data(),    // recv buffer
-			Ns_,                  // recv count per process
-			mpi_type<int8_t>(),   // recv type
+			local_bounds.data(),     // send buffer
+			Ns_,                     // send count
+			mpi::mpi_type<int8_t>(), // send type
+			all_bounds.data(),       // recv buffer
+			Ns_,                     // recv count per process
+			mpi::mpi_type<int8_t>(), // recv type
 			MPI_COMM_WORLD
 	);
 	
@@ -457,10 +457,10 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		MPI_Alltoall(
 			send_counts.data(),
 			1,
-			mpi_type<int64_t>(),
+			mpi::mpi_type<int64_t>(),
 			recv_counts.data(),
 			1,
-			mpi_type<int64_t>(),
+			mpi::mpi_type<int64_t>(),
 			MPI_COMM_WORLD
 		);
 		
@@ -493,7 +493,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		std::vector<SYT_value_t> recv_buf_syt(total_recv);
 		
 		// Exchange incoming friend SYT
-		alltoallv(
+		mpi::alltoallv(
 			send_buf_syt,
 			send_counts,
 			send_displs,
@@ -519,7 +519,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		// Send back the results of the requests to the original processes
 		std::vector<UINT64> result_buf(total_send); // answers coming back to this process
 		
-		alltoallv(
+		mpi::alltoallv(
 			reply_buf,
 			recv_counts,
 			recv_displs,
@@ -693,7 +693,7 @@ void HBFundMatrixEngineMPI::build_matrix_lookups()
 		std::vector<int64_t>& remote_sendrecvcounts = mpi_offdiag_nodes_remote_only_[k];
 		std::vector<int64_t>& remote_srdispls = mpi_offdiag_nodes_remote_only_acc_[k];
 		
-		alltoallv(
+		mpi::alltoallv(
 			mpi_local_index_friend_temp_remote,
 			remote_sendrecvcounts,
 			remote_srdispls,
@@ -859,12 +859,12 @@ void HBFundMatrixEngineMPI::dump_pairs_counts(const unsigned int k)
 	std::vector<uint64_t> recv_buffer_local(mpi_world_size_, 0);
 
 	MPI_Gather(
-		&local_pairs_[k],         // send buffer
-		1,                        // send count
-		mpi_type<uint64_t>(),     // send type
-		recv_buffer_local.data(), // receive buffer
-		1,                        // receive count (per process)
-		mpi_type<uint64_t>(),     // send type
+		&local_pairs_[k],          // send buffer
+		1,                         // send count
+		mpi::mpi_type<uint64_t>(), // send type
+		recv_buffer_local.data(),  // receive buffer
+		1,                         // receive count (per process)
+		mpi::mpi_type<uint64_t>(), // send type
 		0,
 		MPI_COMM_WORLD
 	);
@@ -880,10 +880,10 @@ void HBFundMatrixEngineMPI::dump_pairs_counts(const unsigned int k)
 	MPI_Gather(
 		mpi_offdiag_nodes_remote_only_[k].data(), // send buffer
 		mpi_world_size_,           // send count
-		mpi_type<int64_t>(),       // send datatype
+		mpi::mpi_type<int64_t>(),  // send datatype
 		recv_buffer_remote.data(), // receive buffer
 		mpi_world_size_,           // receive count (per process)
-		mpi_type<int64_t>(),       // receive datatype
+		mpi::mpi_type<int64_t>(),  // receive datatype
 		0,                         // root (receive process)
 		MPI_COMM_WORLD
 	);
@@ -1208,7 +1208,19 @@ void HBFundMatrixEngineMPI::apply_transpositions(const std::vector<AdjacentTrans
 				//======================================
 				// MPI communication of coefficients
 				//======================================
-				alltoallv(
+				/*
+				mpi::alltoallv(
+					send_coeffs,
+					sendrecvcounts,
+					srdispls,
+					recv_coeffs_.data(),
+					sendrecvcounts,
+					srdispls,
+					MPI_COMM_WORLD
+				);
+				*/
+
+				mpi::isend_irecv(
 					send_coeffs,
 					sendrecvcounts,
 					srdispls,
