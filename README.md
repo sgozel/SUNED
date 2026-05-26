@@ -14,11 +14,11 @@ Some of the features of SU($N$)ED are:
 
 ## Performance illustration
 
-The figure below shows the speedup (strong scaling) on the matrix-vector multiplication (MVM) obtained on two different systems (Hamiltonian matrix of dimension 1.26 billion and 13.67 billion, respectively), versus number of nodes. Each node has 192 cores. For the small system, the MVM time is approximately 207 seconds on 1 node. For the larger system, the MVM time is approximately 1167 seconds on 3 nodes.
+The figure below shows the speedup (strong scaling) of the matrix-vector multiplication (MVM) obtained on two different systems (Hamiltonian matrix of dimension 1.26 billion and 13.67 billion, respectively), versus number of nodes. Each node has 192 cores. For the small system, the MVM time is approximately 207 seconds on 1 node. For the larger system, the MVM time is approximately 1167 seconds on 3 nodes.
 
 ![fig_strong_scaling](./media/fig_strong_scaling_triangle_speedup.png)
 
-*Details: This plot shows the speedup on the MVM time for the SU(4) Heisenberg model with nearest and next-nearest neighbor interactions on a triangular lattice with 24 sites (blue) (simulation torus: $`\bf{t}_1 = \bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 5\bf{a}_1 - 4\bf{a}_2`$), respectively 28 sites (red) (simulation torus $`\bf{t}_1 = 2\bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 6\bf{a}_1 - 2\bf{a}_2`$). For the 24-sites system (blue), the target sector is the adjoint irreducible representation with Young diagram $`[7, 6, 6, 5]`$, of dimension 1.26 billion. The Hamiltonian is made of 144 bonds ($`2 \times 24 \times 3`$), and the total number of "elementary" operators $`\tau_{k, k+1}`$ to apply in each MVM is 1784. For the 28-sites system (red), the target sector is the singlet irreducible representation with Young diagram $`[7, 7, 7, 7]`$, of dimension 13.67 billion. The Hamiltonian is made of 168 bonds, and the total number of "elementary" operators $`\tau_{k, k+1}`$ to apply in each MVM is 2368. Following the topology of the AMD Epyc 9654 socket, we bind each die of a node to a MPI process, thus 8 cores per MPI process, 24 processes per node. All cores on a die work in parallel on their section of the Hilbert space, which is memory-distributed among all processes. However, memory bandwidth limits the on-die parallel efficiency.*
+*Details: This plot shows the speedup of the MVM time for the SU(4) Heisenberg model with nearest and next-nearest neighbor interactions on a triangular lattice with 24 sites (blue) (simulation torus: $`\bf{t}_1 = \bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 5\bf{a}_1 - 4\bf{a}_2`$), respectively 28 sites (red) (simulation torus $`\bf{t}_1 = 2\bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 6\bf{a}_1 - 2\bf{a}_2`$). For the 24-sites system (blue), the target sector is the adjoint irreducible representation with Young diagram $`[7, 6, 6, 5]`$, of dimension 1.26 billion. The Hamiltonian is made of 144 bonds ($`2 \times 24 \times 3`$), and the total number of "elementary" operators $`\tau_{k, k+1}`$ to apply in each MVM is 1784. For the 28-sites system (red), the target sector is the singlet irreducible representation with Young diagram $`[7, 7, 7, 7]`$, of dimension 13.67 billion. The Hamiltonian is made of 168 bonds, and the total number of "elementary" operators $`\tau_{k, k+1}`$ to apply in each MVM is 2368. Following the topology of the AMD Epyc 9654 socket, we bind each die of a node to a MPI process, thus 8 cores per MPI process, 24 processes per node. All cores on a die work in parallel on their section of the Hilbert space, which is memory-distributed among all processes. However, memory bandwidth limits the on-die parallel efficiency.*
 
 ## Requirements
 
@@ -26,7 +26,7 @@ The figure below shows the speedup (strong scaling) on the matrix-vector multipl
 - C++ compiler with standard 20
 - OpenBLAS
 - OpenMP
-- (optional) MPI
+- (optional but recommended) MPI
 
 SU($N$)ED uses [nlohmann/json] for input parameter files. The single-source header of this library is located in [`src/nlohmann/`](./src/nlohmann/).
 
@@ -52,14 +52,14 @@ make
 ```
 This will build the MPI executables for energy eigenvalues, eigenpairs and correlations with some predefined configuration (see below). Alternatively, you can configure you own specific build using the usual CMake commands:
 ```
-cmake -S . -build build/release_special_build/ -DCMAKE_BUILD_TYPE=Release <SUNED OPTIONS>
+cmake -S . -B build/release_special_build/ -DCMAKE_BUILD_TYPE=Release <SUNED OPTIONS>
 cmake --build build/release_special_build/
 ```
 where the `<SUNED OPTIONS>` are described in the next section.
 
 ## Options
 
-The following options can be provided to the cmake command at configure time to customize the build:
+The following options can be provided to the `cmake` command at configure time to customize the build:
 
 | Option | Description | Default value |
 | ------ | ------ | ------ |
@@ -118,8 +118,8 @@ The rule is that any `--key value` pair provided on the command line will overri
 | `dump_counts` | Write counts of local and remote pairs of SYTs in each $\tau_{k, k+1}$ to file | false |
 | `counts_dump_folder_path` | Folder path for counts | `.` |
 | `dump_runtime` | Write runtimes to files | false |
-| `n_mvm_runtime` | Number of MVMs for which runtime if written to file | 10 |
-| `runtime_dump_folder_path_` | Folder path for runtimes | `.` |
+| `n_mvm_runtime` | Number of MVMs for which runtime is written to file | 10 |
+| `runtime_dump_folder_path` | Folder path for runtimes | `.` |
 | `correlation_refsite` | Reference site $i$ for correlations $`\left<P_{i, j}\right>, \ \forall j`$ | 0 |
 
 
@@ -222,7 +222,7 @@ make build_tests_mpi
 
 ## Significant others
 
-The three following reposittories, written by the same author, are closely related to SU($N$)ED:
+The three following repositories, written by the same author, are closely related to SU($N$)ED:
 
 - [lattice_optimizer]: reduce the computational cost of ED by performing a graph optimization based on the specified Hamiltonian.
 - [suned_analysis]: a set of Python scripts to plot data obtained with SU($N$)ED, in particular ED spectra.

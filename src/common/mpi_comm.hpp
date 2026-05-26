@@ -8,16 +8,133 @@
 
 #include "mpi_utils.hpp"
 
+namespace mpi {
+
+namespace detail {
+
+
+// MPI 4 Isend/Irecv communication using large counts MPI_Isend_c / MPI_Irecv_c
+template<class coeff_t>
+void isend_irecv_large(const coeff_t* send,
+                       const std::vector<int64_t>& sendcounts,
+                       const std::vector<int64_t>& sdispls,
+                       coeff_t* recv,
+                       const std::vector<int64_t>& recvcounts,
+                       const std::vector<int64_t>& rdispls,
+                       MPI_Comm comm)
+{
+    int world_size;
+    MPI_Comm_size(comm, &world_size);
+
+    std::vector<MPI_Request> reqs;
+    reqs.reserve(2 * world_size);  // upper bound
+
+    // Post all receives
+    for (int rank = 0; rank < world_size; ++rank) {
+        if (recvcounts[rank] > 0) {
+            MPI_Request req;
+            MPI_Irecv_c(recv + rdispls[rank],  // receive buffer
+                        static_cast<MPI_Count>(recvcounts[rank]), // count
+                        mpi_type<coeff_t>(),   // datatype
+                        rank,                  // source process
+						0,                     // tag
+						comm, 
+						&req);
+            reqs.push_back(req);
+        }
+    }
+
+    // Post all sends
+    for (int rank = 0; rank < world_size; ++rank) {
+        if (sendcounts[rank] > 0) {
+            MPI_Request req;
+            MPI_Isend_c(send + sdispls[rank],   // send buffer
+                        static_cast<MPI_Count>(sendcounts[rank]), // count
+                        mpi_type<coeff_t>(),    // datatype
+                        rank,  					// destination process
+						0, 						// tag
+						comm, 
+						&req);
+            reqs.push_back(req);
+        }
+    }
+
+    MPI_Waitall(static_cast<int>(reqs.size()), reqs.data(), MPI_STATUSES_IGNORE);
+}
+
+
+// MPI 3 implementation using chunked Isend/Irecv communication
+template<class coeff_t>
+void isend_irecv_chunked(const coeff_t* send,
+                         const std::vector<int64_t>& sendcounts,
+                         const std::vector<int64_t>& sdispls,
+                         coeff_t* recv,
+                         const std::vector<int64_t>& recvcounts,
+                         const std::vector<int64_t>& rdispls,
+                         MPI_Comm comm)
+{
+    int world_size;
+    MPI_Comm_size(comm, &world_size);
+
+    // Max elements per chunk — stay well below INT_MAX
+    static constexpr int64_t chunk_size = 1 << 30;  // ~1 billion elements ~ 8.6GB for doubles
+
+    std::vector<MPI_Request> reqs;
+    reqs.reserve(2 * world_size);  // will grow if chunking kicks in
+
+    // Post all receives
+    for (int rank = 0; rank < world_size; ++rank) {
+        if (recvcounts[rank] > 0) {
+            int64_t remaining = recvcounts[rank];
+            int64_t offset    = rdispls[rank];
+            int     tag       = 0;
+            while (remaining > 0) {
+                const int count = static_cast<int>(std::min(remaining, chunk_size));
+                MPI_Request req;
+                MPI_Irecv(recv + offset,
+                          count,
+                          mpi_type<coeff_t>(),
+                          rank, 
+						  tag, 
+						  comm, 
+						  &req);
+                reqs.push_back(req);
+                offset    += count;
+                remaining -= count;
+                tag += 1;
+            }
+        }
+    }
+
+    // Post all sends
+    for (int rank = 0; rank < world_size; ++rank) {
+        if (sendcounts[rank] > 0) {
+            int64_t remaining = sendcounts[rank];
+            int64_t offset    = sdispls[rank];
+            int     tag       = 0;
+            while (remaining > 0) {
+                const int count = static_cast<int>(std::min(remaining, chunk_size));
+                MPI_Request req;
+                MPI_Isend(send + offset,
+                          count,
+                          mpi_type<coeff_t>(),
+                          rank, 
+						  tag, 
+						  comm, 
+						  &req);
+                reqs.push_back(req);
+                offset    += count;
+                remaining -= count;
+                tag += 1;
+            }
+        }
+    }
+
+    MPI_Waitall(static_cast<int>(reqs.size()), reqs.data(), MPI_STATUSES_IGNORE);
+}
 
 
 template<class coeff_t>
-/*void alltoallv_chunked(const std::vector<coeff_t>& send,
-					   const std::vector<int64_t>& sendcounts,
-					   const std::vector<int64_t>& sdispls,
-                       std::vector<coeff_t>& recv,
-                       const std::vector<int64_t>& recvcounts,
-                       const std::vector<int64_t>& rdispls,
-                       MPI_Comm comm = MPI_COMM_WORLD)*/
 void alltoallv_chunked(const coeff_t* send,
                        const std::vector<int64_t>& sendcounts,
                        const std::vector<int64_t>& sdispls,
@@ -29,21 +146,7 @@ void alltoallv_chunked(const coeff_t* send,
     int world_size;
     MPI_Comm_size(comm, &world_size);
 
-	/*
-	// NOT POSSIBLE ANYMORE, BECAUSE recv IS A POINTER
-    // Verify recv buffer is large enough
-    int64_t total_recvcounts = 0;
-    for (int r = 0; r < world_size; ++r) {
-        total_recvcounts += recvcounts[r];
-    }
-    if (static_cast<int64_t>(recv.size()) < total_recvcounts) {
-        std::cerr << "alltoallv_chunked: recv buffer too small (size="
-                  << recv.size() << ", required=" << total_recvcounts << ")"
-                  << std::endl;
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }*/
-
-    const int64_t chunk_size = std::numeric_limits<int>::max();
+    const int64_t chunk_size = 1 << 30; // std::numeric_limits<int>::max();
     
     int64_t total_send = sdispls[world_size-1] + sendcounts[world_size-1];
 	int64_t total_recv = rdispls[world_size-1] + recvcounts[world_size-1];
@@ -66,7 +169,7 @@ void alltoallv_chunked(const coeff_t* send,
         }
 		
         MPI_Alltoallv(
-            send, //send.data(),
+            send,
             send_counts.data(),
             send_displs.data(),
             mpi_type<coeff_t>(),
@@ -78,96 +181,19 @@ void alltoallv_chunked(const coeff_t* send,
         );
         
 	} else {
-		// Several chunks are needed
-		
-		std::cerr << "PROBLEM: alltoallv : several chunks needed. Need a review" << std::endl;
-		MPI_Abort(MPI_COMM_WORLD, 1);
-		
-		int64_t max_send = *std::max_element(sendcounts.begin(), sendcounts.end());
-		int64_t max_recv = *std::max_element(recvcounts.begin(), recvcounts.end());
-		int64_t max_count = std::max(max_send, max_recv);
-		
-		int64_t n_chunks = (max_count + chunk_size - 1) / chunk_size;
-		MPI_Allreduce(MPI_IN_PLACE, &n_chunks, 1, MPI_INT64_T, MPI_MAX, comm);
-		
-		std::vector<int> send_counts(world_size, 0);
-		std::vector<int> recv_counts(world_size, 0);
-		std::vector<int> send_displs(world_size, 0);
-		std::vector<int> recv_displs(world_size, 0);
-		
-		// Pack send staging buffer
-		std::vector<coeff_t> send_buf(std::numeric_limits<int>::max());
-		std::vector<coeff_t> recv_buf(std::numeric_limits<int>::max());
-
-		for (int64_t chunk_id = 0; chunk_id < n_chunks; ++chunk_id)
-		{
-			const int64_t offset = chunk_id * chunk_size;
-			
-			int64_t total_send = 0;
-			int64_t total_recv = 0;
-
-			for (int r = 0; r < world_size; ++r)
-			{
-				const int64_t rem_send = std::max(int64_t(0), sendcounts[r] - offset);
-				const int64_t rem_recv = std::max(int64_t(0), recvcounts[r] - offset);
-				send_counts[r] = static_cast<int>(std::min(rem_send, chunk_size));
-				recv_counts[r] = static_cast<int>(std::min(rem_recv, chunk_size));
-				send_displs[r] = static_cast<int>(total_send);
-				recv_displs[r] = static_cast<int>(total_recv);
-				total_send += send_counts[r];
-				total_recv += recv_counts[r];
-			}
-			
-			for (int r = 0; r < world_size; ++r) {
-				/*
-				// vector version
-				std::copy(send.begin() + sdispls[r] + offset,
-						  send.begin() + sdispls[r] + offset + send_counts[r],
-						  send_buf.begin() + send_displs[r]);*/
-				// pointer version
-				std::copy(send + sdispls[r] + offset,
-						  send + sdispls[r] + offset + send_counts[r],
-						  send_buf.begin() + send_displs[r]);
-			}
-			
-			MPI_Alltoallv(
-				send_buf.data(),
-				send_counts.data(),
-				send_displs.data(),
-				mpi_type<coeff_t>(),
-				recv_buf.data(),
-				recv_counts.data(),
-				recv_displs.data(),
-				mpi_type<coeff_t>(),
-				comm
-			);
-
-			// Unpack recv staging buffer
-			for (int r = 0; r < world_size; ++r) {
-				/*
-				// vector version
-				std::copy(recv_buf.begin() + recv_displs[r],
-						  recv_buf.begin() + recv_displs[r] + recv_counts[r],
-						  recv.begin() + rdispls[r] + offset);*/
-				// Pointer version
-				std::copy(recv_buf.begin() + recv_displs[r],
-						  recv_buf.begin() + recv_displs[r] + recv_counts[r],
-						  recv + rdispls[r] + offset);
-			}
-		}
+		// Several chunks are needed - rely on isend_irecv_chunked
+		isend_irecv_chunked(send, sendcounts, sdispls,
+                           	recv, recvcounts, rdispls, comm);
 	}
 }
 
 
+} // namespace detail
+
+
+// public API - takes send and receive buffers as pointers
 template<class coeff_t>
-void alltoallv(/*const std::vector<coeff_t>& send,
-               const std::vector<int64_t>& sendcounts,
-               const std::vector<int64_t>& sdispls,
-               std::vector<coeff_t>& recv,
-               const std::vector<int64_t>& recvcounts,
-               const std::vector<int64_t>& rdispls,
-               MPI_Comm comm = MPI_COMM_WORLD)*/
-			   const coeff_t* send,
+void alltoallv(const coeff_t* send,
                const std::vector<int64_t>& sendcounts,
                const std::vector<int64_t>& sdispls,
                coeff_t* recv,
@@ -190,7 +216,7 @@ void alltoallv(/*const std::vector<coeff_t>& send,
         comm
     );
 #else
-    alltoallv_chunked(
+    detail::alltoallv_chunked(
 		send,
 		sendcounts,
 		sdispls,
@@ -202,7 +228,7 @@ void alltoallv(/*const std::vector<coeff_t>& send,
 }
 
 
-// thin wrapper - takes vectors, delegates to pointer version
+// public API, thin wrapper - takes send and receive buffers as vectors, delegates to pointer version
 template<class coeff_t>
 void alltoallv(const std::vector<coeff_t>& send,
                const std::vector<int64_t>& sendcounts,
@@ -222,5 +248,28 @@ void alltoallv(const std::vector<coeff_t>& send,
 		comm
 	);
 }
+
+
+// public API - equivalent to alltoallv, implemented with Isend/Irecv
+template<class coeff_t>
+void isend_irecv(const coeff_t* send,
+                 const std::vector<int64_t>& sendcounts,
+                 const std::vector<int64_t>& sdispls,
+                 coeff_t* recv,
+                 const std::vector<int64_t>& recvcounts,
+                 const std::vector<int64_t>& rdispls,
+                 MPI_Comm comm = MPI_COMM_WORLD)
+{
+#if MPI_VERSION >= 4
+    static_assert(sizeof(MPI_Count) == sizeof(int64_t), "MPI_Count size mismatch");
+    detail::isend_irecv_large(send, sendcounts, sdispls,
+                              recv, recvcounts, rdispls, comm);
+#else
+    detail::isend_irecv_chunked(send, sendcounts, sdispls,
+                                recv, recvcounts, rdispls, comm);
+#endif
+}
+
+} // namespace mpi
 
 #endif
