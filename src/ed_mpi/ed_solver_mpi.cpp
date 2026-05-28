@@ -65,6 +65,7 @@ void EDSolverMPI::print_mpi_details() const
 		std::cout << "mpi_world_size_ = " << mpi_world_size_ << std::endl;
 		std::cout << "OMP threads per rank = " << omp_get_max_threads() << std::endl;
 		std::cout << "-----------------------------------------" << std::endl;
+		/*
 		std::cout << "Dimensions of each MPI rank: " << std::endl;
 		for (int rank = 0; rank < mpi_world_size_; ++rank) {
 			std::cout << "mpi_dimension[" 
@@ -79,6 +80,7 @@ void EDSolverMPI::print_mpi_details() const
 					  << " ---> " << std::setw(10) << std::right << mpi_end_index_[rank]
 					  << std::endl;
 		}
+		*/
 		std::cout << ":::::::::::::::::::::::::::::::::::::::::" << std::endl;
 		std::cout.flags(coutflags);
 	}
