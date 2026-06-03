@@ -14,11 +14,20 @@ Some of the features of SU($N$)ED are:
 
 ## Performance illustration
 
-The figure below shows the speedup (strong scaling) of the matrix-vector multiplication (MVM) obtained on two different systems (Hamiltonian matrix of dimension 1.26 billion and 13.67 billion, respectively), versus number of nodes. Each node has 192 cores. For the small system, the MVM time is approximately 207 seconds on 1 node. For the larger system, the MVM time is approximately 1167 seconds on 3 nodes.
+The figure below shows the strong scaling of the matrix-vector multiplication (MVM) runtime obtained on four different systems (Hamiltonian matrix of dimension 1.26 billion and 13.67 billions, with and without next-nearest neighbor (NNN) interaction), versus number of compute nodes. Each node has 192 cores.
 
-![fig_strong_scaling](./media/fig_strong_scaling_triangle_speedup.png)
+![fig_strong_scaling](./media/fig_strong_scaling_triangle_mvm_time.png)
 
-*Details: This plot shows the speedup of the MVM time for the SU(4) Heisenberg model with nearest and next-nearest neighbor interactions on a triangular lattice with 24 sites (blue) (simulation torus: $`\bf{t}_1 = \bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 5\bf{a}_1 - 4\bf{a}_2`$), respectively 28 sites (red) (simulation torus $`\bf{t}_1 = 2\bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 6\bf{a}_1 - 2\bf{a}_2`$). For the 24-sites system (blue), the target sector is the adjoint irreducible representation with Young diagram $`[7, 6, 6, 5]`$, of dimension 1.26 billion. The Hamiltonian is made of 144 bonds ($`2 \times 24 \times 3`$), and the total number of "elementary" operators $`\tau_{k, k+1}`$ to apply in each MVM is 1784. For the 28-sites system (red), the target sector is the singlet irreducible representation with Young diagram $`[7, 7, 7, 7]`$, of dimension 13.67 billion. The Hamiltonian is made of 168 bonds, and the total number of "elementary" operators $`\tau_{k, k+1}`$ to apply in each MVM is 2368. Following the topology of the AMD Epyc 9654 socket, we bind each die of a node to a MPI process, thus 8 cores per MPI process, 24 processes per node. All cores on a die work in parallel on their section of the Hilbert space, which is memory-distributed among all processes. However, memory bandwidth limits the on-die parallel efficiency.*
+*Details: This plot shows the MVM runtime for the SU(4) Heisenberg model on a triangular lattice with 24 sites with simulation torus $`\bf{t}_1 = 2\bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 4\bf{a}_1 - 4\bf{a}_2`$) and 28 sites with simulation torus $`\bf{t}_1 = 2\bf{a}_1 + 4 \bf{a}_2`$, $`\bf{t}_2 = 6\bf{a}_1 - 2\bf{a}_2`$). In both cases, we show the runtime for the plain Heisenberg model (red, green), and for the Heisenberg model with nearest and next-nearest neighbor interaction (blue, magenta). For the 24-sites system (red, blue), the target sector is the adjoint irreducible representation with Young diagram $`[7, 6, 6, 5]`$, of dimension 1.26 billion, while for the 28-sites system (green, magenta), the target sector is the singlet irreducible representation with Young diagram $`[7, 7, 7, 7]`$, of dimension 13.67 billions. More details about these systems are given in the table below.*
+
+*Following the topology of the AMD Epyc 9654 socket, we bind each die of a node to a MPI process, thus 8 cores per MPI process, 24 processes per node. All cores on a die work in parallel on their section of the Hilbert space, which is memory-distributed among all processes.*
+
+| $N$ | Number of sites | Model | Irrep | Dimension | Number of bonds | Number of operators | Line color |
+| ------ | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
+| 4 | 24 | Plain Heisenberg (nearest neighbor only) | Adjoint | 1.26 billion | 72 | 616 | red |
+| 4 | 24 | Heisenberg + next-nearest neighbor | Adjoint | 1.26 billion | 144 | 1688 | blue |
+| 4 | 28 | Plain Heisenberg (nearest neighbor only) | Singlet | 13.67 billions | 84 | 884 | green |
+| 4 | 28 | Heisenberg + next-nearest neighbor | Singlet | 13.67 billions | 168 | 2368 | magenta |
 
 ## Requirements
 
