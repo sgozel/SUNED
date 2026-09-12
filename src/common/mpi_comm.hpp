@@ -203,15 +203,30 @@ void alltoallv(const coeff_t* send,
 {
 #if MPI_VERSION >= 4
     static_assert(sizeof(MPI_Count) == sizeof(int64_t), "MPI_Count size mismatch");
+    static_assert(sizeof(MPI_Aint)  == sizeof(int64_t), "MPI_Aint size mismatch");
+
+    int world_size;
+    MPI_Comm_size(comm, &world_size);
+
+    std::vector<MPI_Count> sc(world_size);
+    std::vector<MPI_Count> rc(world_size);
+    std::vector<MPI_Aint>  sd(world_size);
+    std::vector<MPI_Aint>  rd(world_size);
+    for (int r = 0; r < world_size; ++r) {
+        sc[r] = static_cast<MPI_Count>(sendcounts[r]);
+        rc[r] = static_cast<MPI_Count>(recvcounts[r]);
+        sd[r] = static_cast<MPI_Aint>(sdispls[r]);
+        rd[r] = static_cast<MPI_Aint>(rdispls[r]);
+    }
 
     MPI_Alltoallv_c(
         send,
-        sendcounts.data(),
-        sdispls.data(),
+        sc.data(),
+        sd.data(),
         mpi_type<coeff_t>(),
         recv,
-        recvcounts.data(),
-        rdispls.data(),
+        rc.data(),
+        rd.data(),
         mpi_type<coeff_t>(),
         comm
     );
