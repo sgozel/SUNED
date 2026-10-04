@@ -1,6 +1,6 @@
 # SU($N$)ED
 
-[![Tests](https://github.com/sgozel/SUNED/actions/workflows/tests.yml/badge.svg?branch=develop)](https://github.com/sgozel/SUNED/actions/workflows/tests.yml)
+[![DOI](https://zenodo.org/badge/1166658123.svg)](https://doi.org/10.5281/zenodo.23136702) [![Tests](https://github.com/sgozel/SUNED/actions/workflows/tests.yml/badge.svg?branch=develop)](https://github.com/sgozel/SUNED/actions/workflows/tests.yml)
 
 SU($N$)ED is a high-performance C++ exact diagonalization software for solving the SU($N$) Heisenberg model at the largest scales. 
 
