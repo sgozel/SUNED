@@ -239,9 +239,19 @@ The three following repositories, written by the same author, are closely relate
 
 ## Citation
 
-If you use any of the codes of this repository in your work, you are invited to cite it as explained in the `CITATION.cff` file. Your are also invited to cite the following article:
+If you use any of the codes of this repository in your work, you are invited to cite it as explained in the `CITATION.cff` file. Your are also invited to cite the two following articles:
 
 ```
+@misc{gozel_spectral_2026,
+      title = {Spectral Mapping Theorem between SU(N) and SU(Ns/N) Heisenberg Models and Exact Diagonalization of SU(4) and SU(7) Long-Range Ordered Phases on the Triangular Lattice}, 
+      author = {Samuel Gozel and Pierre Nataf},
+      year = {2026},
+      eprint = {2610.15162},
+      archivePrefix = {arXiv},
+      primaryClass = {cond-mat.str-el},
+      url = {https://arxiv.org/abs/2610.15162}
+}
+
 @article{nataf_exact_2014,
 	title = {Exact Diagonalization of Heisenberg $\mathrm{SU}(N)$ Models},
 	author = {Nataf, Pierre and Mila, Fr\'ed\'eric},
