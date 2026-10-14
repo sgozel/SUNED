@@ -10,3 +10,22 @@ date-released: 2026-10-04
 repository-code: "https://github.com/sgozel/SUNED"
 license: GPL-3.0-or-later
 doi: 10.5281/zenodo.23136702
+references:
+- type: article
+  authors:
+  - family-names: "Gozel"
+    given-names: "Samuel"
+    orcid: "https://orcid.org/0000-0003-4759-4881"
+  - family-names: "Nataf"
+    given-names: "Pierre"
+    orcid: "https://orcid.org/0000-0002-3385-426X"
+  title: "Spectral Mapping Theorem between SU(N) and SU(Ns/N) Heisenberg Models and Exact Diagonalization of SU(4) and SU(7) Long-Range Ordered Phases on the Triangular Lattice"
+  year: 2026
+  date-published: 2026-10-14
+  identifiers:
+  - type: doi
+    value: "10.48550/arXiv.2610.15162"
+  - type: other
+    value: "arXiv:2610.15162"
+  - type: url
+    value: "https://arxiv.org/abs/2610.15162"
